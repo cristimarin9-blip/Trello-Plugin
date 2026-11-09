@@ -1,0 +1,9 @@
+name = "trello-companies-house-proxy"
+main = "src/index.js"
+compatibility_date = "2025-01-01"
+
+# Non-secret settings. Set the secret separately:
+#   npx wrangler secret put CH_API_KEY
+[vars]
+# Comma-separated list of origins allowed to call this worker. Use your GitHub Pages origin.
+ALLOWED_ORIGINS = "https://cristimarin9-blip.github.io"
