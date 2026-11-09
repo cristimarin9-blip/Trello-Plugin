@@ -4,7 +4,8 @@
 // renders) or loads the board (board-buttons renders). Writes are throttled so
 // re-renders do not spam pluginData.
 import { KEYS } from '../config.js';
-import { get, set, getSettings } from '../lib/storage.js';
+import { get, set } from '../lib/storage.js';
+import { isEnabled } from '../lib/features.js';
 
 const CARD_VIEW_GAP_MS = 5 * 60 * 1000;   // one record per member per 5 minutes per card
 const BOARD_VISIT_GAP_MS = 15 * 60 * 1000; // one record per member per 15 minutes
@@ -22,10 +23,10 @@ function throttled(key, gap) {
   return false;
 }
 
-export async function recordCardView(t) {
+export async function recordCardView(t, enabled) {
   try {
-    const settings = await getSettings(t);
-    if (!settings.recordViews) return;
+    const on = enabled ? enabled.viewers : await isEnabled(t, 'viewers');
+    if (!on) return;
     const [member, card] = await Promise.all([t.member('id', 'fullName', 'username'), t.card('id')]);
     if (!member || !card || throttled(`card:${card.id}:${member.id}`, CARD_VIEW_GAP_MS)) return;
     const views = (await get(t, 'card', KEYS.views)) || { viewers: {}, total: 0 };
@@ -61,7 +62,8 @@ export async function recordBoardVisit(t) {
   }
 }
 
-export async function cardDetailBadges(t) {
+export async function cardDetailBadges(t, enabled) {
+  if (enabled && !enabled.viewers) return [];
   const views = await get(t, 'card', KEYS.views);
   if (!views || !views.total) return [];
   const viewers = Object.keys(views.viewers || {}).length;

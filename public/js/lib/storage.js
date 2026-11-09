@@ -30,7 +30,7 @@ export function getSettings(t) {
   return get(t, 'board', 'settings', {}).then((s) => ({
     chProxyUrl: '',
     stageBadges: true,
-    recordViews: true,
+    defaults: {},
     ...(s || {})
   }));
 }

@@ -3,7 +3,8 @@ import { KEYS } from '../config.js';
 import { get } from '../lib/storage.js';
 import { truncate } from '../lib/util.js';
 
-export async function cardBadges(t) {
+export async function cardBadges(t, enabled) {
+  if (enabled && !enabled.subtasks) return [];
   const [parent, children] = await Promise.all([get(t, 'card', KEYS.parent), get(t, 'card', KEYS.children)]);
   const badges = [];
   if (parent && parent.id) badges.push({ text: `↑ ${truncate(parent.name, 22)}`, color: 'purple' });
@@ -17,7 +18,8 @@ export async function cardBadges(t) {
   return badges;
 }
 
-export async function cardDetailBadges(t) {
+export async function cardDetailBadges(t, enabled) {
+  if (enabled && !enabled.subtasks) return [];
   const parent = await get(t, 'card', KEYS.parent);
   if (!parent || !parent.id) return [];
   return [{
@@ -28,7 +30,8 @@ export async function cardDetailBadges(t) {
   }];
 }
 
-export function cardButtons(iconUrl) {
+export function cardButtons(iconUrl, enabled) {
+  if (enabled && !enabled.subtasks) return [];
   return [{
     icon: iconUrl,
     text: 'Subtasks',

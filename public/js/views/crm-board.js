@@ -4,6 +4,7 @@ import { initIframe } from '../lib/iframe.js';
 import { get } from '../lib/storage.js';
 import { TRACKS, TRACK_ORDER, summarize } from '../features/crm.js';
 import { PRIORITIES } from '../features/priority.js';
+import { boardDefaults, cardFeatures } from '../lib/features.js';
 import { byId, clear, el, formatDate, daysUntil, deadlineColor, truncate } from '../lib/util.js';
 
 const t = initIframe();
@@ -25,10 +26,19 @@ let rows = [];
 async function load() {
   const [cards, lists] = await Promise.all([t.cards('id', 'name', 'idList', 'due'), t.lists('id', 'name')]);
   const listName = new Map(lists.map((l) => [l.id, l.name]));
-  const data = await Promise.all(cards.map((c) => Promise.all([get(t, c.id, KEYS.crm), get(t, c.id, KEYS.company), get(t, c.id, KEYS.priority)])));
+  const defaults = await boardDefaults(t);
+  const data = await Promise.all(cards.map((c) => Promise.all([get(t, c.id, KEYS.crm), get(t, c.id, KEYS.company), get(t, c.id, KEYS.priority), cardFeatures(t, c.id, defaults)])));
   rows = cards.map((c, i) => {
-    const [crm, company, priority] = data[i];
-    return { card: c, list: listName.get(c.idList) || '', crm: crm || {}, company, priority, tracks: summarize(crm, company) };
+    const [crm, company, priority, { enabled }] = data[i];
+    // Respect per-card feature switches: hide what the card itself would not show.
+    return {
+      card: c,
+      list: listName.get(c.idList) || '',
+      crm: crm || {},
+      company: enabled.company ? company : null,
+      priority: enabled.priority ? priority : null,
+      tracks: enabled.crm ? summarize(crm, company) : []
+    };
   }).filter((r) => r.tracks.length || r.company);
   update();
 }

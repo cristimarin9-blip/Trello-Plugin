@@ -61,7 +61,8 @@ export function summarize(crm, company) {
   });
 }
 
-export async function cardBadges(t) {
+export async function cardBadges(t, enabled) {
+  if (enabled && !enabled.crm) return [];
   const settings = await getSettings(t);
   if (!settings.stageBadges) return [];
   const [crm, company] = await Promise.all([get(t, 'card', KEYS.crm), get(t, 'card', KEYS.company)]);
@@ -70,7 +71,8 @@ export async function cardBadges(t) {
     .map((s) => ({ text: `${s.short}: ${s.stage}${s.due ? ` · ${formatDate(s.due, { year: undefined })}` : ''}`, color: s.color }));
 }
 
-export async function cardDetailBadges(t) {
+export async function cardDetailBadges(t, enabled) {
+  if (enabled && !enabled.crm) return [];
   const [crm, company] = await Promise.all([get(t, 'card', KEYS.crm), get(t, 'card', KEYS.company)]);
   return summarize(crm, company).map((s) => ({ title: s.label, text: `${s.stage}${s.due ? ` · due ${formatDate(s.due)}` : ''}`, color: s.color || deadlineColor(s.due) }));
 }

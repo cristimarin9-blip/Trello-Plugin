@@ -4,6 +4,7 @@ import { initIframe } from '../lib/iframe.js';
 import { set, remove } from '../lib/storage.js';
 import { cards as cardsApi, isAuthorized, hasAppKey } from '../lib/trello-api.js';
 import { ORDER, PRIORITIES } from '../features/priority.js';
+import { FEATURES, boardDefaults, setCardFeature, setCardFeatures } from '../lib/features.js';
 import { byId, clear, el, setStatus, truncate, formatDate } from '../lib/util.js';
 
 const t = initIframe();
@@ -18,8 +19,11 @@ const listFilter = el('select', {});
 const picker = el('div', { class: 'scroll', style: 'max-height:55vh' });
 const actionSel = el('select', {}, [
   ['move', 'Move to list…'], ['archive', 'Archive'], ['label', 'Add label…'], ['member', 'Add member…'],
-  ['due', 'Set due date…'], ['priority', 'Set priority…'], ['clearPriority', 'Clear priority'], ['complete', 'Mark due complete']
+  ['due', 'Set due date…'], ['priority', 'Set priority…'], ['clearPriority', 'Clear priority'], ['complete', 'Mark due complete'],
+  ['featureOn', 'Turn feature ON…'], ['featureOff', 'Turn feature OFF…'], ['featureReset', 'Reset features to board defaults']
 ].map(([v, l]) => el('option', { value: v }, l)));
+const NO_REST = ['priority', 'clearPriority', 'featureOn', 'featureOff', 'featureReset'];
+let defaults = null;
 const extra = el('div');
 const apply = el('button', { class: 'primary' }, 'Apply to 0 cards');
 const progress = el('div', { class: 'muted' });
@@ -64,6 +68,7 @@ function renderExtra() {
   if (v === 'member') extra.append(el('select', { id: 'opt' }, board.members.map((m) => el('option', { value: m.id }, m.fullName))));
   if (v === 'due') extra.append(el('input', { id: 'opt', type: 'date' }));
   if (v === 'priority') extra.append(el('select', { id: 'opt' }, ORDER.map((p) => el('option', { value: p }, PRIORITIES[p].label))));
+  if (v === 'featureOn' || v === 'featureOff') extra.append(el('select', { id: 'opt' }, FEATURES.map((f) => el('option', { value: f.id }, f.label))));
 }
 
 async function runOne(cardId, action, value) {
@@ -76,6 +81,9 @@ async function runOne(cardId, action, value) {
     case 'complete': return cardsApi.update(t, cardId, { dueComplete: true });
     case 'priority': return set(t, cardId, KEYS.priority, value);
     case 'clearPriority': return remove(t, cardId, KEYS.priority);
+    case 'featureOn': return setCardFeature(t, cardId, value, true, defaults);
+    case 'featureOff': return setCardFeature(t, cardId, value, false, defaults);
+    case 'featureReset': return setCardFeatures(t, cardId, null);
     default: throw new Error(`Unknown action ${action}`);
   }
 }
@@ -84,11 +92,12 @@ apply.onclick = async () => {
   const action = actionSel.value;
   const opt = byId('opt');
   const value = opt ? opt.value : null;
-  if (['move', 'label', 'member', 'due', 'priority'].includes(action) && !value) return setStatus('Choose a value first', 'error');
-  const needsRest = !['priority', 'clearPriority'].includes(action);
+  if (['move', 'label', 'member', 'due', 'priority', 'featureOn', 'featureOff'].includes(action) && !value) return setStatus('Choose a value first', 'error');
+  const needsRest = !NO_REST.includes(action);
   if (needsRest && !(await isAuthorized(t))) return setStatus(hasAppKey() ? 'Authorise the Power-Up first (Power-Up menu → settings).' : 'APP_KEY not set in config.js (README step 3).', 'error');
   if (!window.confirm(`${actionSel.selectedOptions[0].textContent} on ${selected.size} cards?`)) return;
   apply.disabled = true;
+  defaults = await boardDefaults(t);
   let ok = 0; let failed = 0;
   const ids = [...selected];
   for (let i = 0; i < ids.length; i += 1) {

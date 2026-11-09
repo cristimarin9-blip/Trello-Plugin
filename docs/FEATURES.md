@@ -73,6 +73,14 @@ Two platform facts shape most of the design:
 * **Built:** card button **Temporary card** → expire at end of today / 24 h / 3 days / 7 days / custom. Shows a pink `⌛ Temp · expires …` badge (orange within 2 days, red when due) and archives the card through the scheduler (§11), so the same execution rules apply.
 * **Code:** `public/js/views/schedule.js` (mode `temp`), `public/js/features/scheduler.js`.
 
+## 15. Feature switches (defaults, per-card, bulk)
+* **Board defaults:** Power-Up gear → Settings → **Default features for cards**. Tick the features that should be on for cards. Every card that has not been customised follows these defaults, so a feature you switch off here disappears from all uncustomised cards at once (and comes back when you switch it on).
+* **Per card:** card back → **⚙ Features** tab. Tick/untick any feature; the card is then "custom" and keeps its own full set. **Reset to board defaults** removes the override. A pill shows where a card differs from the board default.
+* **Bulk:** board button **Bulk actions** → select cards → *Turn feature ON…*, *Turn feature OFF…* or *Reset features to board defaults*. These need no REST authorisation.
+* **What a switch does:** off hides the feature's card-front badges, detail badges, card buttons and card-back tab, stops recording views (for *Who viewed*), hides the card from the Client CRM table (for *Client stages*), ignores the card's priority when sorting, and pauses scheduled actions on that card (they stay stored and resume if the feature is turned back on). Data is never deleted by a switch.
+* **Switchable features:** Priority · Companies House · Client stages (CRM) · Subtasks & parent · Checklist sub-points · Card history · Who viewed · Scheduled actions & temporary cards · Apply routines. Board-level tools (Client CRM, Bulk actions, Routines, Activity audit, list filter) are always available.
+* **Code:** `public/js/lib/features.js`, `public/js/tabs/features.js`, `public/js/views/settings.js`, `public/js/views/bulk.js`.
+
 ---
 
 ## Data stored by the Power-Up
@@ -85,7 +93,8 @@ Two platform facts shape most of the design:
 | card | `parent` / `children` | `{ id, name }` / `[cardId]` |
 | card | `crm` | `{ bookkeeping|accounts|vat|paye: { on, stage, period, note } }` |
 | card | `schedule` | `[{ id, at, type, listId?, listName?, value?, temp? }]` |
-| board | `settings` | `{ chProxyUrl, stageBadges, recordViews }` |
+| card | `features` | per-card override `{ featureId: true/false }` (absent = follows board defaults) |
+| board | `settings` | `{ chProxyUrl, stageBadges, defaults: { featureId: true/false } }` |
 | board | `routines` | `[{ id, name, steps[] }]` |
 | board | `audit` | `{ members: { id: { n, u, first, last, v } }, log: [{ m, at }] }` |
 | board | `scheduleLog` | last 15 executed scheduled actions |

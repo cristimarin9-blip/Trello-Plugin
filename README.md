@@ -17,6 +17,7 @@ A Trello Power-Up built for an accountancy practice. It adds, to any board you e
 | Scheduled card actions | Card button **Schedule action** (archive, move, complete, set priority at a date/time) |
 | Temporary cards | Card button **Temporary card** (auto-archive after a period) |
 | Bulk card actions | Board button **Bulk actions** |
+| Feature switches: defaults for cards, per-card and bulk on/off | Power-Up settings → **Default features for cards** · card back → **⚙ Features** tab · Bulk actions → *Turn feature ON/OFF* / *Reset to board defaults* |
 
 `docs/FEATURES.md` explains how each one works and where Trello's Power-Up platform limits what is possible (for example, Trello gives no real "viewed" or "logged in" events, and a Power-Up cannot place a search box inside a list header).
 

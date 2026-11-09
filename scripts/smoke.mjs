@@ -91,8 +91,21 @@ await visit('/index.html', false, async (page, errors) => {
         else out[name] = await fn(t);
       } catch (e) { out[name] = `ERROR ${e.message}`; }
     }
+    // Feature switches: per-card override, then board default.
+    await t.set('card', 'shared', 'features', { priority: true, company: false, crm: true, subtasks: true, checklist: true, history: true, viewers: true, schedule: false, routines: true });
+    out.__afterOverride = { badges: (await window.__caps['card-badges'](t)).map((b) => b.text), buttons: (await window.__caps['card-buttons'](t)).map((b) => b.text) };
+    await t.remove('card', 'shared', 'features');
+    await t.set('board', 'shared', 'settings', { defaults: { crm: false } });
+    out.__afterDefault = { badges: (await window.__caps['card-badges'](t)).map((b) => b.text) };
+    await t.remove('board', 'shared', 'settings');
     return out;
   });
+  const ov = result.__afterOverride;
+  if (ov.badges.some((b) => /Accounts|Temp/.test(b)) || ov.buttons.some((b) => /Schedule|Temporary/.test(b))) errors.push(`feature override not respected: ${JSON.stringify(ov)}`);
+  if (!ov.badges.some((b) => b.startsWith('⬆'))) errors.push('priority badge should remain with override');
+  if (result.__afterDefault.badges.some((b) => b.startsWith('VAT'))) errors.push(`board default not respected: ${JSON.stringify(result.__afterDefault)}`);
+  console.log('  after override:', ov.badges.join(' | '), '//', ov.buttons.join(' | '));
+  delete result.__afterOverride; delete result.__afterDefault;
   for (const [k, v] of Object.entries(result)) {
     if (typeof v === 'string' && v.startsWith('ERROR')) errors.push(`${k}: ${v}`);
   }

@@ -56,6 +56,14 @@ const snap = toSnapshot(shaped);
 assert.equal(snap.ctPaymentDue, '2026-04-01');
 assert.equal(snap.ctReturnDue, '2026-06-30');
 assert.ok(JSON.stringify(snap).length < 1200, 'snapshot stays small');
+const { resolve, builtInDefaults, FEATURE_IDS } = await import('../public/js/lib/features.js');
+const d = builtInDefaults();
+assert.ok(FEATURE_IDS.every((id) => d[id] === true));
+assert.equal(resolve(d, { company: false }).company, false);
+assert.equal(resolve(d, { company: false }).priority, true);
+assert.equal(resolve({ ...d, crm: false }, null).crm, false);
+assert.equal(resolve({ ...d, crm: false }, { crm: true }).crm, true);
+assert.equal(resolve(d, { company: 'nope' }).company, true, 'non-boolean overrides are ignored');
 console.log('✓ unit checks passed');
 
 if (failed) { console.error(`${failed} file(s) failed to parse`); process.exit(1); }

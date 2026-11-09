@@ -1,6 +1,7 @@
 import { KEYS, STORAGE_LIMIT } from '../config.js';
 import { initIframe, fit } from '../lib/iframe.js';
-import { get, set, getSettings, getAllShared } from '../lib/storage.js';
+import { set, getSettings, getAllShared } from '../lib/storage.js';
+import { FEATURES, boardDefaults } from '../lib/features.js';
 import { authorize, clearToken, isAuthorized, hasAppKey } from '../lib/trello-api.js';
 import { byId, clear, el, jsonSize, setStatus } from '../lib/util.js';
 
@@ -26,19 +27,25 @@ async function render() {
   const proxy = el('input', { type: 'url', placeholder: 'https://your-worker.workers.dev', value: settings.chProxyUrl || '' });
   app.append(el('label', {}, 'Proxy URL (Cloudflare Worker from /worker — README step 6)'), proxy);
 
-  app.append(el('h3', { style: 'margin-top:10px' }, 'Behaviour'));
+  app.append(el('h3', { style: 'margin-top:10px' }, 'Default features for cards'));
+  app.append(el('p', { class: 'muted' }, el('small', {}, 'Cards that have not been customised follow these defaults. Change one card from its ⚙ Features tab, or many cards from Bulk actions.')));
+  const defaults = await boardDefaults(t);
+  const featureBoxes = {};
+  for (const f of FEATURES) {
+    featureBoxes[f.id] = el('input', { type: 'checkbox', checked: !!defaults[f.id] });
+    app.append(el('label', { class: 'row', style: 'text-transform:none;font-weight:400;margin:3px 0' }, featureBoxes[f.id], el('span', {}, f.label, ' ', el('small', { class: 'muted' }, f.desc))));
+  }
+
+  app.append(el('h3', { style: 'margin-top:10px' }, 'Display'));
   const stageBadges = el('input', { type: 'checkbox', checked: settings.stageBadges });
-  const recordViews = el('input', { type: 'checkbox', checked: settings.recordViews });
-  app.append(
-    el('label', { class: 'row', style: 'text-transform:none' }, stageBadges, ' Show client stage badges on card fronts'),
-    el('label', { class: 'row', style: 'text-transform:none' }, recordViews, ' Record who viewed each card')
-  );
+  app.append(el('label', { class: 'row', style: 'text-transform:none' }, stageBadges, ' Show client stage badges on card fronts'));
 
   const used = jsonSize(boardData);
   app.append(el('p', { class: 'muted' }, el('small', {}, `Board storage used: ${used} / ${STORAGE_LIMIT} characters (routines, audit log, settings).`)));
 
   app.append(el('p', {}, el('button', { class: 'primary', onclick: async () => {
-    await set(t, 'board', KEYS.settings, { chProxyUrl: proxy.value.trim().replace(/\/+$/, ''), stageBadges: stageBadges.checked, recordViews: recordViews.checked });
+    const nextDefaults = Object.fromEntries(FEATURES.map((f) => [f.id, featureBoxes[f.id].checked]));
+    await set(t, 'board', KEYS.settings, { chProxyUrl: proxy.value.trim().replace(/\/+$/, ''), stageBadges: stageBadges.checked, defaults: nextDefaults });
     setStatus('Saved', 'success');
   } }, 'Save settings')));
   fit(t);

@@ -10,6 +10,7 @@
 import { KEYS } from '../config.js';
 import { get, set } from '../lib/storage.js';
 import { isAuthorized, cards as cardsApi } from '../lib/trello-api.js';
+import { boardDefaults, cardFeatures } from '../lib/features.js';
 import { daysUntil, formatDateTime, truncate } from '../lib/util.js';
 
 const RUN_GAP_MS = 60 * 1000;
@@ -26,7 +27,8 @@ export function describe(item) {
   }
 }
 
-export async function cardBadges(t) {
+export async function cardBadges(t, enabled) {
+  if (enabled && !enabled.schedule) return [];
   const schedule = (await get(t, 'card', KEYS.schedule)) || [];
   if (!schedule.length) return [];
   const next = [...schedule].sort((a, b) => a.at - b.at)[0];
@@ -37,7 +39,8 @@ export async function cardBadges(t) {
   return [{ text: label + (schedule.length > 1 ? ` (+${schedule.length - 1})` : ''), color }];
 }
 
-export function cardButtons(iconUrl) {
+export function cardButtons(iconUrl, enabled) {
+  if (enabled && !enabled.schedule) return [];
   return [
     {
       icon: iconUrl,
@@ -74,10 +77,14 @@ export async function runDueActions(t) {
     const boardCards = await t.cards('id', 'name');
     const schedules = await Promise.all(boardCards.map((c) => get(t, c.id, KEYS.schedule)));
     const log = (await get(t, 'board', KEYS.scheduleLog)) || [];
+    const defaults = await boardDefaults(t);
     let changed = false;
     for (let i = 0; i < boardCards.length; i += 1) {
       const schedule = schedules[i];
       if (!schedule || !schedule.length) continue;
+      // Cards with the feature switched off keep their schedule but nothing runs.
+      const { enabled } = await cardFeatures(t, boardCards[i].id, defaults);
+      if (!enabled.schedule) continue;
       const due = schedule.filter((s) => s.at <= now);
       if (!due.length) continue;
       const remaining = schedule.filter((s) => s.at > now);

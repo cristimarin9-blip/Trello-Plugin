@@ -12,7 +12,8 @@ export function boardButtons(icon) {
   }];
 }
 
-export function cardButtons(iconUrl) {
+export function cardButtons(iconUrl, enabled) {
+  if (enabled && !enabled.routines) return [];
   return [{
     icon: iconUrl,
     text: 'Apply routine',

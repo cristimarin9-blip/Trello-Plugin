@@ -19,9 +19,10 @@ export const KEYS = {
   children: 'children',      // card/shared  : [cardId, ...]
   crm: 'crm',                // card/shared  : client stage tracker
   schedule: 'schedule',      // card/shared  : scheduled actions / temporary card expiry
+  features: 'features',      // card/shared  : per-card feature overrides { featureId: bool }
   routines: 'routines',      // board/shared : [{ id, name, steps: [] }]
   audit: 'audit',            // board/shared : member activity on this board
-  settings: 'settings',      // board/shared : { chProxyUrl, stageBadges, recordViews }
+  settings: 'settings',      // board/shared : { chProxyUrl, stageBadges, defaults: { featureId: bool } }
   scheduleLog: 'scheduleLog' // board/shared : last executed scheduled actions
 };
 

@@ -4,7 +4,8 @@ import { KEYS } from '../config.js';
 import { get } from '../lib/storage.js';
 import { deadlineColor, deadlineText } from '../lib/util.js';
 
-export async function cardBadges(t) {
+export async function cardBadges(t, enabled) {
+  if (enabled && !enabled.company) return [];
   const c = await get(t, 'card', KEYS.company);
   if (!c || !c.number) return [];
   const badges = [];
@@ -15,7 +16,8 @@ export async function cardBadges(t) {
   return badges;
 }
 
-export async function cardDetailBadges(t) {
+export async function cardDetailBadges(t, enabled) {
+  if (enabled && !enabled.company) return [];
   const c = await get(t, 'card', KEYS.company);
   if (!c || !c.number) return [];
   return [{
