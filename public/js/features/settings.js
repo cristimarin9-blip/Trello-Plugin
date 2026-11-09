@@ -4,7 +4,7 @@ import { KEYS } from '../config.js';
 import { remove } from '../lib/storage.js';
 
 export function showSettings(t) {
-  return t.popup({ title: 'Practice Power-Up settings', url: './views/settings.html', height: 420 });
+  return t.popup({ title: 'Keel settings', url: './views/settings.html', height: 420 });
 }
 
 export async function authorizationStatus(t) {

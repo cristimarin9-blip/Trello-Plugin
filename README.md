@@ -1,11 +1,11 @@
-# Practice Power-Up for Trello
+# Keel — a Trello Power-Up
 
 A Trello Power-Up built for an accountancy practice. It adds, to any board you enable it on:
 
 | Feature | Where you find it in Trello |
 |---|---|
 | Card priority (Urgent / High / Medium / Low) | Badge on the card front · "Priority" badge on the card back · list menu → *Sort by* → Priority |
-| Companies House lookup + deadlines at a glance | Card back → **Practice Power-Up** section → **Company** tab · deadline badges on the card front |
+| Companies House lookup + deadlines at a glance | Card back → **Keel** section → **Company** tab · deadline badges on the card front |
 | Client CRM (bookkeeping / accounts / VAT / PAYE stages) | Card back → **Client stages** tab · board button **Client CRM** (all clients in one table, CSV export) |
 | Task card ↔ subtask cards | Card button **Subtasks** · card back → **Subtasks** tab · badges "↑ parent" and "☑ 2/5 subtasks" |
 | Checklist sub-points and ordering | Card back → **Checklist** tab (numbered 1, 1.1, 1.2…, move up/down, indent/outdent) |
@@ -69,7 +69,7 @@ Every later push to `main` that touches `public/` redeploys automatically.
 
 1. Go to **https://trello.com/power-ups/admin** and click **New**.
 2. Fill in:
-   * **Name**: Practice Power-Up (anything you like)
+   * **Name**: Keel
    * **Workspace**: the workspace whose boards will use it (custom Power-Ups are only visible inside this workspace)
    * **Iframe connector URL**: `https://cristimarin9-blip.github.io/Trello-Plugin/`
    * Email / support contact / author: your details
@@ -108,9 +108,9 @@ Trello only calls the capabilities you enable. In the Power-Up admin open the **
 
 ### Step 6 — Add it to a board and authorise
 
-1. Open a board in that workspace → **Power-Ups** (top bar or board menu) → **Custom** tab → **Practice Power-Up → Add**.
+1. Open a board in that workspace → **Power-Ups** (top bar or board menu) → **Custom** tab → **Keel → Add**.
 2. The settings popup opens (it also opens later from the Power-Up's gear icon). Click **Authorise** and approve. This grants the Power-Up a token to read and write cards on your behalf, which card history, checklist tools, routines, bulk and scheduled actions need. Each team member authorises once in their own browser.
-3. Open any card: you should see the **Practice Power-Up** section with the tabs, and the new card buttons on the right.
+3. Open any card: you should see the **Keel** section with the tabs, and the new card buttons on the right.
 
 If something does not appear, do a hard refresh (Ctrl/Cmd + Shift + R) — Trello caches the connector.
 
@@ -165,7 +165,7 @@ Now open a client card → **Company** tab → type the company number → **Loo
 
 * **Changing the Power-Up**: edit files under `public/`, push to `main`, wait ~1 minute, hard-refresh Trello.
 * **Checks before pushing**: `npm run check` parses every module and runs the date/number unit tests; `npm run smoke` loads every page in headless Chromium with a fake Trello client (needs Playwright installed locally: `npm i -D playwright && npx playwright install chromium`). The **Check** GitHub Action runs `npm run check` on every push.
-* **Testing without deploying**: Trello only loads HTTPS pages, so serve `public/` locally (`npm run serve`) and expose it with a tunnel such as `npx cloudflared tunnel --url http://localhost:8080` or ngrok, then create a second Power-Up ("Practice Power-Up DEV") in the admin portal pointing at the tunnel URL.
+* **Testing without deploying**: Trello only loads HTTPS pages, so serve `public/` locally (`npm run serve`) and expose it with a tunnel such as `npx cloudflared tunnel --url http://localhost:8080` or ngrok, then create a second Power-Up ("Keel DEV") in the admin portal pointing at the tunnel URL.
 * **Other workspaces**: a custom Power-Up is only listed in the workspace chosen in step 3. Create another Power-Up entry per workspace (same URL), or go through Trello's public-listing review.
 
 ## Troubleshooting

@@ -8,7 +8,7 @@
 export const APP_KEY = 'REPLACE_WITH_YOUR_TRELLO_API_KEY';
 
 // Shown to users when they authorise the Power-Up to act on their behalf.
-export const APP_NAME = 'Practice Power-Up';
+export const APP_NAME = 'Keel';
 
 // Storage keys used in Trello pluginData. Keep these stable: renaming one orphans existing data.
 export const KEYS = {
