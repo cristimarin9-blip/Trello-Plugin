@@ -2,7 +2,7 @@
 import { KEYS } from '../config.js';
 import { initIframe } from '../lib/iframe.js';
 import { set, remove } from '../lib/storage.js';
-import { cards as cardsApi, isAuthorized, hasAppKey } from '../lib/trello-api.js';
+import { cards as cardsApi, isAuthorized, isConfigured } from '../lib/trello-api.js';
 import { ORDER, PRIORITIES } from '../features/priority.js';
 import { FEATURES, boardDefaults, setCardFeature, setCardFeatures } from '../lib/features.js';
 import { byId, clear, el, setStatus, truncate, formatDate } from '../lib/util.js';
@@ -94,7 +94,7 @@ apply.onclick = async () => {
   const value = opt ? opt.value : null;
   if (['move', 'label', 'member', 'due', 'priority', 'featureOn', 'featureOff'].includes(action) && !value) return setStatus('Choose a value first', 'error');
   const needsRest = !NO_REST.includes(action);
-  if (needsRest && !(await isAuthorized(t))) return setStatus(hasAppKey() ? 'Authorise the Power-Up first (Power-Up menu → settings).' : 'APP_KEY not set in config.js (README step 3).', 'error');
+  if (needsRest && !(await isAuthorized(t))) return setStatus(isConfigured() ? 'Authorise the Power-Up first (Power-Up menu → settings).' : 'OAUTH_CLIENT_ID not set in config.js (README step 3).', 'error');
   if (!window.confirm(`${actionSel.selectedOptions[0].textContent} on ${selected.size} cards?`)) return;
   apply.disabled = true;
   defaults = await boardDefaults(t);

@@ -78,7 +78,7 @@ function update() {
       el('td', {}, r.priority ? el('span', { class: `pill ${PRIORITIES[r.priority].color}` }, PRIORITIES[r.priority].label) : '')));
   }
   table.append(tbody);
-  tableWrap.append(rows.length ? table : el('p', { class: 'muted' }, 'No client cards yet. Open a card → Practice Power-Up section → "Client stages" to start tracking one.'));
+  tableWrap.append(rows.length ? table : el('p', { class: 'muted' }, 'No client cards yet. Open a card → Keel section → "Client stages" to start tracking one.'));
 }
 
 function exportCsv() {
