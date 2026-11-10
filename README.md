@@ -174,7 +174,7 @@ Now open a client card → **Company** tab → type the company number → **Loo
 | Symptom | Likely cause |
 |---|---|
 | Power-Up not in the **Custom** tab | Board is not in the workspace chosen in the admin portal |
-| No buttons/badges after adding | Capabilities not ticked (step 5), or Trello cache — hard refresh |
+| No buttons/badges after adding | Capabilities not ticked (step 4), or Trello cache — hard refresh |
 | "Authorise" popup shows an error or never closes | Callback URL in the OAuth 2.0 tab does not match `.../views/oauth-callback.html` exactly, the OAuth 2.0 settings were not saved, or `OAUTH_CLIENT_ID` is still the placeholder (step 3) |
 | Authorised on one board but not another | OAuth 2.0 tokens for Power-Ups are per workspace; authorise again on a board in the other workspace |
 | Checklist / History tab says "Authorise…" | That browser has not authorised yet — Power-Up gear → Settings → Authorise |
