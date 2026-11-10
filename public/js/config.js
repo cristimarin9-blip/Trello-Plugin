@@ -1,14 +1,22 @@
 // ---------------------------------------------------------------------------
-// Power-Up configuration. Edit these two values after you create the Power-Up
-// in the Trello admin portal (see README.md, step 3).
+// Power-Up configuration. Values come from the Trello admin portal
+// (https://trello.com/power-ups/admin -> Keel -> Authorization -> OAuth 2.0).
 // ---------------------------------------------------------------------------
 
-// Your Trello API key from https://trello.com/power-ups/admin -> your Power-Up -> "API key".
-// It is a public identifier (it is safe to commit), but the token the user grants is not.
-export const APP_KEY = 'REPLACE_WITH_YOUR_TRELLO_API_KEY';
-
-// Shown to users when they authorise the Power-Up to act on their behalf.
+// Shown in the card-back section title and the settings popup.
 export const APP_NAME = 'Keel';
+
+// OAuth 2.0 "Client ID" from the OAuth 2.0 tab (security type: Public).
+// It is a public identifier, safe to commit. There is no secret for public clients.
+export const OAUTH_CLIENT_ID = 'JpcsjyDUsQcVWemdSDgoJZAZqv9YQHK';
+
+// Page Trello redirects to after the user clicks "Allow". It is served from this
+// repo and must be listed, character for character, under "Callback URL(s)" in
+// the OAuth 2.0 tab:  https://cristimarin9-blip.github.io/Trello-Plugin/views/oauth-callback.html
+export const OAUTH_REDIRECT_URI = new URL('../views/oauth-callback.html', import.meta.url).href;
+
+// Scopes requested at authorisation. read/write:board are always enabled for Power-Ups.
+export const OAUTH_SCOPES = ['read:board:trello', 'write:board:trello'];
 
 // Storage keys used in Trello pluginData. Keep these stable: renaming one orphans existing data.
 export const KEYS = {

@@ -1,7 +1,7 @@
 // Power-Up connector. Trello loads public/index.html in a hidden iframe and this
 // file registers every capability. Each capability must ALSO be ticked in the
-// Trello admin portal (README step 5) or Trello will not call it.
-import { APP_KEY, APP_NAME } from './config.js';
+// Trello admin portal (README step 4) or Trello will not call it.
+import { APP_NAME, OAUTH_CLIENT_ID, OAUTH_REDIRECT_URI } from './config.js';
 import { cardFeatures } from './lib/features.js';
 import * as priority from './features/priority.js';
 import * as companiesHouse from './features/companies-house.js';
@@ -76,4 +76,4 @@ window.TrelloPowerUp.initialize({
   'show-authorization': settings.showAuthorization,
   'on-enable': settings.showSettings,
   'remove-data': settings.removeData
-}, { appKey: APP_KEY, appName: APP_NAME });
+}, { clientId: OAUTH_CLIENT_ID, redirectUri: OAUTH_REDIRECT_URI });

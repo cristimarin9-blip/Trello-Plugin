@@ -1,8 +1,8 @@
 // Bootstraps an iframe page (popup, modal or card-back section).
-import { APP_KEY, APP_NAME } from '../config.js';
+import { OAUTH_CLIENT_ID, OAUTH_REDIRECT_URI } from '../config.js';
 
 export function initIframe(options = {}) {
-  const t = window.TrelloPowerUp.iframe({ appKey: APP_KEY, appName: APP_NAME, ...options });
+  const t = window.TrelloPowerUp.iframe({ clientId: OAUTH_CLIENT_ID, redirectUri: OAUTH_REDIRECT_URI, ...options });
   return t;
 }
 

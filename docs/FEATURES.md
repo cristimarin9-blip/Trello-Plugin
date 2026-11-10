@@ -5,7 +5,7 @@ Each requested feature, what was built, how it works, and where Trello's Power-U
 Two platform facts shape most of the design:
 
 * **Storage.** A Power-Up stores data in Trello "pluginData": at most **4096 characters of JSON per card** and **4096 per board** (shared visibility). Every feature below keeps its data compact and capped. Settings → shows current board usage.
-* **No server, no events.** A Power-Up is client-side code that runs in the browser of a member who has it enabled. Trello gives it no "card viewed", "user logged in" or timer events, and does not let it change Trello's own interface (no injecting a search box into a list). Anything that needs Trello's data beyond the card/board in view uses the Trello REST API with the token each member grants via **Authorise**.
+* **No server, no events.** A Power-Up is client-side code that runs in the browser of a member who has it enabled. Trello gives it no "card viewed", "user logged in" or timer events, and does not let it change Trello's own interface (no injecting a search box into a list). Anything that needs Trello's data beyond the card/board in view uses the Trello REST API with the OAuth 2.0 token each member grants via **Authorise** (per workspace; access tokens refresh automatically, refresh tokens last 90 days).
 
 ---
 

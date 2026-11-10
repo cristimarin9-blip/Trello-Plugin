@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Keel — finishing sign-in</title>
+  <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+  <!-- Trello's OAuth 2.0 consent screen redirects here. The script hands the
+       authorisation code back to the Power-Up iframe that started the flow. -->
+  <div id="app"><p>Finishing authorisation… this window closes by itself.</p></div>
+  <div id="status" class="status"></div>
+  <script src="https://p.trellocdn.com/power-up.min.js"></script>
+  <script type="module" src="../js/views/oauth-callback.js"></script>
+</body>
+</html>

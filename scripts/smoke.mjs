@@ -32,7 +32,7 @@ const MOCK = `
       render: (fn) => { window.__render = fn; return fn(); },
       sizeTo: async () => {}, signUrl: (u) => u, popup: async () => {}, modal: async () => {}, closePopup: async () => {}, closeModal: async () => {},
       showCard: async () => {}, alert: () => {},
-      getRestApi: () => ({ isAuthorized: async () => false, getToken: async () => null, authorize: async () => {}, clearToken: async () => {} })
+      getOAuth2ApiClient: () => ({ getAccessToken: async () => null, authorize: async () => {}, redirectUriCallback: async () => {} })
     };
   }
   window.TrelloPowerUp = {
@@ -126,7 +126,7 @@ await visit('/views/card-back.html', true, async (page) => {
     console.log(`  tab ${label}: ${body}`);
   }
 });
-for (const path of ['/views/relationships.html', '/views/schedule.html', '/views/schedule.html?mode=temp', '/views/list-filter.html?listId=l1&listName=To%20do', '/views/settings.html', '/views/authorize.html', '/views/crm-board.html', '/views/routines.html', '/views/bulk.html', '/views/audit.html']) {
+for (const path of ['/views/relationships.html', '/views/schedule.html', '/views/schedule.html?mode=temp', '/views/list-filter.html?listId=l1&listName=To%20do', '/views/settings.html', '/views/authorize.html', '/views/oauth-callback.html', '/views/crm-board.html', '/views/routines.html', '/views/bulk.html', '/views/audit.html']) {
   await visit(path, true);
 }
 

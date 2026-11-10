@@ -1,46 +1,49 @@
-// Trello REST API access using the token granted through t.getRestApi().
+// Trello REST API access using OAuth 2.0 tokens from t.getOAuth2ApiClient().
 // Everything that Power-Up client data cannot do (card history, checklists,
 // creating/moving cards, bulk edits) goes through here.
-import { APP_KEY } from '../config.js';
+//
+// Tokens are issued per user and per workspace (Power-Up OAuth 2.0 clients are
+// workspace-restricted). The client library stores them in plugin data and
+// refreshes access tokens automatically; refresh tokens expire after 90 days,
+// after which getAccessToken() returns null and the user must authorise again.
+import { OAUTH_CLIENT_ID, OAUTH_SCOPES } from '../config.js';
 
 const BASE = 'https://api.trello.com/1';
 
 export class NotAuthorizedError extends Error {
   constructor() {
-    super('Not authorised: click "Authorize" in the Power-Up settings first.');
+    super('Not authorised: open the Power-Up settings and click "Authorise" first.');
     this.name = 'NotAuthorizedError';
   }
 }
 
-export function hasAppKey() {
-  return APP_KEY && !APP_KEY.startsWith('REPLACE_WITH');
+export function isConfigured() {
+  return !!OAUTH_CLIENT_ID && !OAUTH_CLIENT_ID.startsWith('REPLACE_WITH');
+}
+
+function client(t) {
+  if (!isConfigured()) throw new Error('OAUTH_CLIENT_ID is not set in public/js/config.js (README step 3).');
+  return t.getOAuth2ApiClient();
+}
+
+/** Current access token, or null when the user has not authorised (or the refresh token expired). */
+export async function getToken(t) {
+  if (!isConfigured()) return null;
+  try {
+    return (await client(t).getAccessToken()) || null;
+  } catch (err) {
+    console.warn('getAccessToken failed', err);
+    return null;
+  }
 }
 
 export async function isAuthorized(t) {
-  if (!hasAppKey()) return false;
-  try {
-    return await t.getRestApi().isAuthorized();
-  } catch (err) {
-    console.warn('isAuthorized failed', err);
-    return false;
-  }
+  return !!(await getToken(t));
 }
 
-export async function getToken(t) {
-  if (!(await isAuthorized(t))) throw new NotAuthorizedError();
-  return t.getRestApi().getToken();
-}
-
-/** Must be called from a user gesture (button click) because it opens a popup window. */
-export function authorize(t, scope = { read: true, write: true }) {
-  if (!hasAppKey()) {
-    return Promise.reject(new Error('Set APP_KEY in public/js/config.js first (README step 3).'));
-  }
-  return t.getRestApi().authorize({ scope, expiration: 'never' });
-}
-
-export function clearToken(t) {
-  return t.getRestApi().clearToken();
+/** Must be called from a user gesture (button click): it opens Trello's consent popup. */
+export function authorize(t) {
+  return client(t).authorize({ scopes: OAUTH_SCOPES });
 }
 
 /**
@@ -49,10 +52,9 @@ export function clearToken(t) {
  */
 export async function api(t, method, path, params = {}) {
   const token = await getToken(t);
+  if (!token) throw new NotAuthorizedError();
   const url = new URL(BASE + path);
-  url.searchParams.set('key', APP_KEY);
-  url.searchParams.set('token', token);
-  const init = { method, headers: { Accept: 'application/json' } };
+  const init = { method, headers: { Accept: 'application/json', Authorization: `Bearer ${token}` } };
   if (method === 'GET' || method === 'DELETE') {
     for (const [k, v] of Object.entries(params)) if (v !== undefined && v !== null) url.searchParams.set(k, v);
   } else {
@@ -60,6 +62,7 @@ export async function api(t, method, path, params = {}) {
     init.body = JSON.stringify(params);
   }
   const res = await fetch(url.toString(), init);
+  if (res.status === 401) throw new NotAuthorizedError();
   if (!res.ok) {
     const text = await res.text().catch(() => '');
     throw new Error(`Trello API ${method} ${path} failed (${res.status}): ${text.slice(0, 200)}`);
