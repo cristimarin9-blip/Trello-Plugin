@@ -1,4 +1,4 @@
-import { KEYS, STORAGE_LIMIT } from '../config.js';
+import { KEYS, STORAGE_LIMIT, CH_PROXY_URL } from '../config.js';
 import { initIframe, fit } from '../lib/iframe.js';
 import { set, getSettings, getAllShared } from '../lib/storage.js';
 import { FEATURES, boardDefaults } from '../lib/features.js';
@@ -22,8 +22,9 @@ async function render() {
   }
 
   app.append(el('h3', {}, 'Companies House'));
-  const proxy = el('input', { type: 'url', placeholder: 'https://your-worker.workers.dev', value: settings.chProxyUrl || '' });
+  const proxy = el('input', { type: 'url', placeholder: CH_PROXY_URL || 'https://your-worker.workers.dev', value: settings.chProxyUrl || '' });
   app.append(el('label', {}, 'Proxy URL (Cloudflare Worker from /worker — README step 6)'), proxy);
+  if (CH_PROXY_URL) app.append(el('p', { class: 'muted' }, el('small', {}, 'Leave empty to use Keel\'s own proxy. Only fill this in to use a different worker on this board.')));
 
   app.append(el('h3', { style: 'margin-top:10px' }, 'Default features for cards'));
   app.append(el('p', { class: 'muted' }, el('small', {}, 'Cards that have not been customised follow these defaults. Change one card from its ⚙ Features tab, or many cards from Bulk actions.')));

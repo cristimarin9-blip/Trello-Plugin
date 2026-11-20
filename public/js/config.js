@@ -15,6 +15,10 @@ export const OAUTH_CLIENT_ID = 'zjR05r6U2sbVC9zfUNLdaxfW6akrA75W';
 // the OAuth 2.0 tab:  https://cristimarin9-blip.github.io/Trello-Plugin/views/oauth-callback.html
 export const OAUTH_REDIRECT_URI = new URL('../views/oauth-callback.html', import.meta.url).href;
 
+// Companies House proxy (the Cloudflare Worker in /worker). Used by every board
+// unless a board's Power-Up settings give a different Proxy URL.
+export const CH_PROXY_URL = 'https://trello-companies-house-proxy.kabooom.workers.dev';
+
 // Scopes requested at authorisation. read/write:board are always enabled for Power-Ups.
 export const OAUTH_SCOPES = ['read:board:trello', 'write:board:trello'];
 

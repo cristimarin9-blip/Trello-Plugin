@@ -132,7 +132,9 @@ const companyJson = { number: 'SC000001', name: 'ACME (SCOTLAND) LTD', status: '
   accounts: { nextDue: '2026-12-31', nextMadeUpTo: '2026-03-31', overdue: false, lastMadeUpTo: '2025-03-31', ard: '31/03' },
   confirmation: { nextDue: '2026-12-01', nextMadeUpTo: '2026-11-17', overdue: false }, officers: [] };
 let oldWorker = false;
-await context.route(`${PROXY}/**`, (route) => {
+const proxyCalls = [];
+const fakeWorker = (route) => {
+  proxyCalls.push(route.request().url());
   const url = new URL(route.request().url());
   const reply = (status, body) => route.fulfill({ status, contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify(body) });
   if (url.pathname === '/search') return oldWorker ? reply(404, { error: 'Use /company/{companyNumber}' }) : reply(200, { items: [
@@ -140,8 +142,16 @@ await context.route(`${PROXY}/**`, (route) => {
     { number: '00000099', name: 'ACME OLD LTD', status: 'dissolved', address: '9 Lane, Leeds' }] });
   if (url.pathname === '/company/SC000001') return reply(200, companyJson);
   return reply(404, { error: 'Company not found' });
-});
+};
+await context.route(`${PROXY}/**`, fakeWorker);
+await context.route('https://trello-companies-house-proxy.kabooom.workers.dev/**', fakeWorker);
 await visit('/views/card-back.html', false, async (page, errors) => {
+  // No board Proxy URL saved: the built-in CH_PROXY_URL is used.
+  await page.locator('.tabs button', { hasText: 'Company' }).click();
+  await page.locator('#tab-body input[type=text]').fill('acme');
+  await page.locator('#tab-body button.primary').click();
+  await page.locator('#tab-body .card-list li').first().waitFor();
+  if (!proxyCalls.some((u) => u.startsWith('https://trello-companies-house-proxy.kabooom.workers.dev/search'))) errors.push(`default proxy not used: ${proxyCalls.join(', ')}`);
   await page.evaluate((proxy) => { const t = window.__makeT(); return t.set('board', 'shared', 'settings', { chProxyUrl: proxy }).then(() => window.__render()); }, PROXY);
   await page.locator('.tabs button', { hasText: 'Company' }).click();
   const input = page.locator('#tab-body input[type=text]');

@@ -156,7 +156,7 @@ Test it in a browser: `<worker-url>/company/00000006` should return JSON for a r
 
 **6c. Point the Power-Up at it**
 
-Board → Power-Up gear icon → **Settings** → paste the worker URL into **Proxy URL** → **Save settings**.
+Put the worker URL in `CH_PROXY_URL` in `public/js/config.js` and push to `main`; every board then uses it. (Keel's is already set to `https://trello-companies-house-proxy.kabooom.workers.dev`.) To use a different worker on one board only: Power-Up gear icon → **Settings** → **Proxy URL** → **Save settings**.
 
 Now open a client card → **Company** tab → type the company number and click **Look up**, or type part of the company name and click **Search**, then click the right company in the list. The card front gets badges for accounts, confirmation statement and estimated corporation-tax deadlines, coloured red/orange/yellow/green by proximity. Snapshots refresh automatically when a card is opened after 24 hours.
 
@@ -180,7 +180,7 @@ Now open a client card → **Company** tab → type the company number and click
 | Authorised on one board but not another | OAuth 2.0 tokens for Power-Ups are per workspace; authorise again on a board in the other workspace |
 | Checklist / History tab says "Authorise…" | That browser has not authorised yet — Power-Up gear → Settings → Authorise |
 | "Name search needs the updated proxy worker" | The worker was deployed before name search existed: redeploy `worker/src/index.js` (`npx wrangler deploy`, or paste it into the Cloudflare editor and click Deploy) |
-| Companies House lookup fails | Proxy URL not saved, worker not deployed, `CH_API_KEY` secret missing, or `ALLOWED_ORIGINS` does not match the Pages origin |
+| Companies House lookup fails | `CH_PROXY_URL` (or the board's Proxy URL) wrong, worker not deployed, `CH_API_KEY` secret missing, or `ALLOWED_ORIGINS` does not match the Pages origin |
 | "Too much routine text" | Trello allows 4 KB of Power-Up data per board; shorten or delete routines |
 | Scheduled action did not run at the exact time | Actions run when a board member next opens the board (see `docs/FEATURES.md`); use Trello Automation for exact timing |
 
@@ -189,7 +189,7 @@ Now open a client card → **Company** tab → type the company number and click
 ```
 public/                 the Power-Up (deployed to GitHub Pages)
   index.html            connector loaded by Trello
-  js/config.js          OAuth 2.0 client ID, redirect URI, APP_NAME, storage keys
+  js/config.js          OAuth 2.0 client ID, redirect URI, Companies House proxy URL, APP_NAME, storage keys
   js/client.js          registers all capabilities
   js/features/*.js      badge/button logic per feature
   js/tabs/*.js          tabs of the card-back section

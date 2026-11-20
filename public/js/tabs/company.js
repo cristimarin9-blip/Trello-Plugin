@@ -1,5 +1,5 @@
 // Card-back tab: Companies House lookup (by number, or search by name) and deadlines.
-import { KEYS } from '../config.js';
+import { KEYS, CH_PROXY_URL } from '../config.js';
 import { get, set, remove, getSettings } from '../lib/storage.js';
 import { el, clear, formatDate, daysUntil, deadlineColor, monthsFromEnd, relativeTime, setStatus } from '../lib/util.js';
 
@@ -69,8 +69,9 @@ export function toSnapshot(data) {
 
 async function proxyUrl(t) {
   const settings = await getSettings(t);
-  if (!settings.chProxyUrl) throw new Error('Set the Companies House proxy URL in the Power-Up settings first (README step 6).');
-  return settings.chProxyUrl;
+  const url = settings.chProxyUrl || CH_PROXY_URL;
+  if (!url) throw new Error('Set the Companies House proxy URL in the Power-Up settings first (README step 6).');
+  return url;
 }
 
 async function lookup(t, number, root, ctx) {
