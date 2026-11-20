@@ -181,20 +181,19 @@ await visit('/views/card-back.html', false, async (page, errors) => {
   console.log('  search flow: results', rows, '· saved', saved && saved.name, '· old worker:', status.slice(0, 60));
 });
 
-// --- Fields: set up, fill in, visible fields, badges, table + CSV -----------------
-const store = { boards: {}, cards: {} };
-const fieldRequests = [];
+// --- Fields: set up, fill in, visible fields, badges, table, views, CSV ----------
+const store = { boards: {}, cards: {}, views: [] };
 await context.route('https://trello-companies-house-proxy.kabooom.workers.dev/fields/**', async (route) => {
   const req = route.request();
   const headers = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET, PUT, PATCH, POST, OPTIONS', 'Access-Control-Allow-Headers': 'Accept, Content-Type, Authorization' };
   if (req.method() === 'OPTIONS') return route.fulfill({ status: 204, headers });
   const reply = (status, body) => route.fulfill({ status, headers, contentType: 'application/json', body: JSON.stringify(body) });
   if (req.headers().authorization !== 'Bearer test-token') return reply(401, { error: 'Authorise Keel first' });
-  const [, kind, id] = new URL(req.url()).pathname.match(/^\/fields\/(board|card)\/([^/]+)/);
+  const [, kind, id, sub] = new URL(req.url()).pathname.match(/^\/fields\/(board|card)\/([^/]+)(?:\/(views|sample))?/);
   const body = req.postData() ? JSON.parse(req.postData()) : null;
-  fieldRequests.push(`${req.method()} ${kind}`);
   const boardOf = () => store.boards.b1 || { fields: [], updatedAt: 0 };
-  if (kind === 'board' && req.method() === 'GET') return reply(200, { ...boardOf(), cards: store.cards });
+  if (sub === 'views') { store.views = body.views; return reply(200, { views: store.views }); }
+  if (kind === 'board' && req.method() === 'GET') return reply(200, { ...boardOf(), views: store.views, cards: store.cards });
   if (kind === 'board' && req.method() === 'PUT') {
     if (body.updatedAt !== boardOf().updatedAt) return reply(409, { error: 'Someone else changed the fields' });
     store.boards.b1 = { fields: body.fields, updatedAt: Date.now() };
@@ -214,119 +213,195 @@ async function fieldsPage(path) {
   page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
   page.on('console', (m) => { if (m.type() === 'error') errors.push(`console: ${m.text()}`); });
   await page.addInitScript(() => { window.__token = 'test-token'; });
+  await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto(`${BASE}${path}`, { waitUntil: 'networkidle' });
   return { page, errors };
 }
 // SHOTS=dir npm run smoke  saves screenshots of the Fields pages.
 const shot = (page, name) => (process.env.SHOTS ? page.screenshot({ path: `${process.env.SHOTS}/${name}.png`, fullPage: true }) : null);
 const done = async ({ page, errors }, label) => { errors.forEach((e) => problems.push(`${label}: ${e}`)); console.log(`${errors.length ? '✗' : '✓'} ${label}`); await page.close(); };
+const fieldNames = () => (store.boards.b1 ? store.boards.b1.fields : []).map((f) => f.name);
 
-{ // Card with no fields yet offers set-up.
+{ // Card with no fields yet offers set-up, and the button opens a page that exists.
   const p = await fieldsPage('/views/card-back.html');
   await p.page.locator('.tabs button', { hasText: 'Fields' }).click();
   await p.page.locator('#tab-body button', { hasText: 'Set up fields' }).click();
-  // The modal must point at a page that exists when opened from inside the card (views/) iframe.
   const opened = await p.page.evaluate(async () => { const o = window.__lastModal; const r = await fetch(o.url); return { url: o.url, status: r.status, tab: o.args && o.args.tab }; });
   if (opened.status !== 200 || !opened.url.endsWith('/views/fields-board.html') || opened.tab !== 'manage') p.errors.push(`Set up fields opens a broken page: ${JSON.stringify(opened)}`);
-  console.log('  set-up opens:', opened.url.replace(BASE, ''), opened.status);
   await done(p, 'fields: empty board offers set-up');
 }
-{ // Define fields in the board modal.
+{ // Add / edit fields: gallery, rename, options, layout, section tab, reorder, save.
   const p = await fieldsPage('/views/fields-board.html?tab=manage');
   const { page } = p;
-  const add = page.locator('button', { hasText: '+ Add field' });
-  await add.click();
-  await page.locator('.track').nth(0).locator('input[type=text]').first().fill('VAT Status');
-  await page.locator('.track').nth(0).locator('select').first().selectOption('choice');
-  await page.locator('.track').nth(0).locator('.options input[type=text]').nth(0).fill('VAT');
-  await page.locator('.track').nth(0).locator('button', { hasText: '+ Add option' }).click();
-  await page.locator('.track').nth(0).locator('.options input[type=text]').nth(1).fill('Non-VAT');
-  await page.locator('.track').nth(0).locator('label', { hasText: 'Badge on card front' }).locator('input').check();
-  await add.click();
-  await page.locator('.track').nth(1).locator('input[type=text]').first().fill('Accounts Schedules Things to Check');
-  await page.locator('.track').nth(1).locator('select').first().selectOption('notes');
-  if (!(await page.locator('.track').nth(1).locator('label', { hasText: 'Badge on card front' }).locator('input').isDisabled())) p.errors.push('notes badge should be disabled');
-  await add.click();
-  await page.locator('.track').nth(2).locator('input[type=text]').first().fill('Year end');
-  await page.locator('.track').nth(2).locator('select').first().selectOption('date');
-  await page.locator('.track').nth(2).locator('button[aria-label="Move up"]').click();
-  await page.locator('button', { hasText: 'Save fields' }).click();
-  await page.waitForTimeout(400);
-  const names = (store.boards.b1 && store.boards.b1.fields || []).map((f) => `${f.name}:${f.type}`);
-  if (names.join('|') !== 'VAT Status:choice|Year end:date|Accounts Schedules Things to Check:notes') p.errors.push(`fields not saved as expected: ${names.join('|')}`);
-  if (!/Fields saved/.test(await page.locator('#status').textContent())) p.errors.push('no saved message');
-  // Empty name is refused before saving.
-  await add.click();
-  await page.locator('button', { hasText: 'Save fields' }).click();
-  if (!/needs a name/.test(await page.locator('#status').textContent())) p.errors.push('empty field name was not refused');
+  const addFromGallery = async (name) => {
+    if (!(await page.locator('.gallery').count())) await page.locator('.fm-side-head button', { hasText: '+ Add' }).click();
+    await page.locator(`button[aria-label="Add ${name}"]`).click();
+  };
+  if (!(await page.locator('.gcard').count())) p.errors.push('gallery not shown for an empty board');
+  await page.locator('input[aria-label="Search field types"]').fill('vat');
+  if ((await page.locator('.gcard').count()) !== 1) p.errors.push(`gallery search should find 1, found ${await page.locator('.gcard').count()}`);
+  await page.locator('input[aria-label="Search field types"]').fill('');
+  await shot(page, 'fields-gallery');
+  await addFromGallery('VAT status');
+  await addFromGallery('Company number');
+  await addFromGallery('Year end');
+  await page.locator('.kv-row', { hasText: 'Editor width' }).locator('select').selectOption('third');
+  await addFromGallery('Section tab');
+  await page.locator('input.fname').fill('Accounts Schedules Things to Check');
+  await addFromGallery('Things to check');
+  await page.locator('input.fname').fill('Debtors');
+  await page.locator('.check-row', { hasText: 'Required' }).locator('input').check();
+  await addFromGallery('Rating');
+  await page.locator('button[aria-label="Move up"]').click();
+  // Options editing on VAT.
+  await page.locator('.fm-list li', { hasText: 'VAT Status' }).click();
+  await page.locator('.check-row', { hasText: 'Show field name on card front' }).locator('input').check();
+  if (!/Unsaved/.test(await page.locator('.savebar').textContent())) p.errors.push('unsaved indicator missing');
+  if (!(await page.locator('.preview-card .ftabs button', { hasText: 'Accounts Schedules' }).count())) p.errors.push('preview does not show the section tab');
   await shot(page, 'fields-manage');
+  await page.locator('.savebar button', { hasText: 'Save fields' }).click();
+  await page.waitForTimeout(400);
+  const names = fieldNames();
+  const expect = ['VAT Status', 'Company Number', 'Year end', 'Accounts Schedules Things to Check', 'Rating', 'Debtors'];
+  if (names.join('|') !== expect.join('|')) p.errors.push(`fields not saved as expected: ${names.join('|')}`);
+  const saved = Object.fromEntries((store.boards.b1 ? store.boards.b1.fields : []).map((f) => [f.name, f]));
+  if (!saved['Year end'] || saved['Year end'].width !== 'third' || !saved.Debtors || !saved.Debtors.required || saved['Accounts Schedules Things to Check'].type !== 'section' || !saved['VAT Status'].badgeName) p.errors.push(`field options not saved: ${JSON.stringify(saved).slice(0, 300)}`);
+  if (!/Fields saved/.test(await page.locator('#status').textContent())) p.errors.push('no saved message');
+  // An empty name is refused.
+  await addFromGallery('Text');
+  await page.locator('input.fname').fill('');
+  await page.locator('.savebar button', { hasText: 'Save fields' }).click();
+  if (!/needs a name/.test(await page.locator('#status').textContent())) p.errors.push('empty field name was not refused');
+  await page.locator('.savebar button', { hasText: 'Discard' }).click();
+  if ((await page.locator('.fm-list li').count()) !== 6) p.errors.push('discard did not restore the saved fields');
   console.log('  fields defined:', names.join(' | '));
-  await done(p, 'fields: manage');
+  await done(p, 'fields: add / edit');
 }
-{ // Fill in a card.
+const F = () => Object.fromEntries(store.boards.b1.fields.map((f) => [f.name, f]));
+{ // Fill in a card: segment buttons, date, section tab, notes, rating, required, visible fields.
   const p = await fieldsPage('/views/card-back.html');
   const { page } = p;
   await page.locator('.tabs button', { hasText: 'Fields' }).click();
   await page.locator('.segmented button', { hasText: 'Non-VAT' }).click();
-  await page.waitForTimeout(300);
-  await page.locator('input[type=date]').fill('2026-08-31');
-  await page.locator('input[type=date]').dispatchEvent('change');
-  await page.waitForTimeout(300);
-  await page.locator('.notes-view').click();
-  await page.locator('textarea').fill('Debtors\n- August 2026 sales missing\n- Sales not received?\nCreditors\n- Wages - 750.80 difference');
-  await page.locator('button', { hasText: 'Save' }).first().click();
+  await page.waitForTimeout(200);
+  await page.locator('input[aria-label="Year end"]').fill('2026-08-31');
+  await page.locator('input[aria-label="Year end"]').dispatchEvent('change');
+  await page.waitForTimeout(200);
+  if (!(await page.locator('.ftabs button', { hasText: 'Accounts Schedules' }).count())) p.errors.push('section tab missing on the card');
+  if (!(await page.locator('.fcell.missing', { hasText: 'Debtors' }).count())) p.errors.push('required empty field not marked');
+  await page.locator('.fcell', { hasText: 'Debtors' }).locator('.notes-view').click();
+  await page.locator('textarea').fill('Debtors:\n- August 2026 sales missing\n- Sales not received?\nCreditors:\n- Wages - 750.80 difference');
+  await page.locator('.fcell button', { hasText: 'Save' }).click();
   await page.locator('.notes h4').first().waitFor();
   const heads = await page.locator('.notes h4').allTextContents();
-  const bullets = await page.locator('.notes li').count();
-  if (heads.join('|') !== 'Debtors|Creditors' || bullets !== 3) p.errors.push(`notes rendered wrong: ${heads} / ${bullets}`);
-  const card = store.cards.c1 || { values: {} };
-  const fieldIds = store.boards.b1.fields.map((f) => f.id);
-  const vat = store.boards.b1.fields[0];
-  if (card.values[fieldIds[0]] !== vat.options[1].id || card.values[fieldIds[1]] !== '2026-08-31' || !/Debtors/.test(card.values[fieldIds[2]] || '')) p.errors.push(`card values wrong: ${JSON.stringify(card.values)}`);
-  // Clicking the selected option again clears it.
-  await page.locator('.segmented button', { hasText: 'Non-VAT' }).click();
-  await page.waitForTimeout(300);
-  if (store.cards.c1.values[fieldIds[0]] !== undefined) p.errors.push('choice did not clear');
-  await page.locator('.segmented button', { hasText: 'VAT' }).first().click();
-  await page.waitForTimeout(300);
-  // Visible fields: None hides everything, Board default restores.
-  await page.locator('button', { hasText: 'Visible fields' }).click();
-  await page.locator('.track button', { hasText: 'None' }).click();
-  await page.waitForTimeout(300);
-  if (!/No fields are shown/.test(await page.locator('#tab-body').textContent())) p.errors.push('None did not hide fields');
-  await page.locator('.track label', { hasText: 'VAT Status' }).locator('input').check();
-  await page.waitForTimeout(300);
-  if (JSON.stringify(store.cards.c1.visible) !== JSON.stringify([fieldIds[0]])) p.errors.push(`visible list wrong: ${JSON.stringify(store.cards.c1.visible)}`);
-  await page.locator('.track button', { hasText: 'Board default' }).click();
-  await page.waitForTimeout(300);
-  if (store.cards.c1.visible !== null) p.errors.push('board default not restored');
-  await page.locator('button', { hasText: 'Visible fields' }).click();
+  if (heads.join('|') !== 'Debtors:|Creditors:' || (await page.locator('.notes li').count()) !== 3) p.errors.push(`notes rendered wrong: ${heads}`);
+  if (await page.locator('.fcell.missing', { hasText: 'Debtors' }).count()) p.errors.push('required mark not cleared after filling');
+  await page.locator('.stars button[aria-label="3 of 5"]').click();
+  await page.waitForTimeout(200);
+  const f = F();
+  const v = store.cards.c1.values;
+  if (v[f['VAT Status'].id] !== f['VAT Status'].options[1].id || v[f['Year end'].id] !== '2026-08-31' || v[f.Rating.id] !== 3 || !/Wages/.test(v[f.Debtors.id] || '')) p.errors.push(`card values wrong: ${JSON.stringify(v)}`);
+  await page.locator('.segmented button', { hasText: /^VAT$/ }).click();
+  await page.waitForTimeout(200);
   await shot(page, 'fields-card');
-  console.log('  card values:', JSON.stringify(store.cards.c1.values).slice(0, 90));
+  // Visible fields picker.
+  await page.locator('button', { hasText: 'Visible fields' }).click();
+  await page.locator('.picker button', { hasText: 'None' }).click();
+  await page.waitForTimeout(200);
+  if (!/No fields are shown/.test(await page.locator('#tab-body').textContent())) p.errors.push('None did not hide fields');
+  await page.locator('.picker-item', { hasText: 'VAT Status' }).locator('input').check();
+  await page.waitForTimeout(200);
+  if (JSON.stringify(store.cards.c1.visible) !== JSON.stringify([f['VAT Status'].id])) p.errors.push(`visible list wrong: ${JSON.stringify(store.cards.c1.visible)}`);
+  await shot(page, 'fields-picker');
+  await page.locator('.picker button', { hasText: 'Board default' }).click();
+  await page.waitForTimeout(200);
+  if (store.cards.c1.visible !== null) p.errors.push('board default not restored');
+  console.log('  card values:', JSON.stringify(store.cards.c1.values).slice(0, 100));
   await done(p, 'fields: card tab');
 }
-{ // Badges from the connector.
+{ // Badges from the connector, and card-front deadline choices from settings.
   const p = await fieldsPage('/index.html');
-  const badges = await p.page.evaluate(async () => { const t = window.__makeT(); return (await window.__caps['card-badges'](t)).map((b) => `${b.text}/${b.color || ''}`); });
-  if (!badges.includes('VAT/green')) p.errors.push(`VAT badge missing: ${badges.join(' | ')}`);
+  const badges = await p.page.evaluate(async () => { const t = window.__makeT(); window.__seed(); return (await window.__caps['card-badges'](t)).map((b) => `${b.text}/${b.color || ''}`); });
+  if (!badges.includes('VAT Status: VAT/green')) p.errors.push(`VAT badge missing: ${badges.join(' | ')}`);
+  if (!badges.some((b) => b.startsWith('Accounts'))) p.errors.push('Accounts deadline badge missing by default');
+  const after = await p.page.evaluate(async () => {
+    const t = window.__makeT();
+    await t.set('card', 'shared', 'company', { ...(await t.get('card', 'shared', 'company')), ctReturnDue: '2027-03-31' });
+    await t.set('board', 'shared', 'settings', { cardBadges: { accounts: false, crm_vat: false, ctReturn: true } });
+    const out = (await window.__caps['card-badges'](t)).map((b) => b.text);
+    await t.remove('board', 'shared', 'settings');
+    return out;
+  });
+  if (after.some((b) => b.startsWith('Accounts') || b.startsWith('VAT: ')) || !after.some((b) => b.startsWith('CT600'))) p.errors.push(`deadline choices not respected: ${after.join(' | ')}`);
   console.log('  badges:', badges.join(' | '));
-  await done(p, 'fields: card-front badge');
+  console.log('  with choices:', after.join(' | '));
+  await done(p, 'fields: card-front badges + deadline choices');
 }
-{ // Board table, sort and CSV.
-  store.cards.c2 = { values: { [store.boards.b1.fields[1].id]: '2026-03-31' }, visible: null };
+{ // Settings popup saves the deadline choices and keeps other settings.
+  const p = await fieldsPage('/views/settings.html');
+  const { page } = p;
+  await page.evaluate(() => window.__makeT().set('board', 'shared', 'settings', { chProxyUrl: '', custom: 'keep-me' }));
+  await page.evaluate(() => window.__render());
+  await page.locator('label', { hasText: 'Accounts due' }).locator('input').uncheck();
+  await page.locator('label', { hasText: 'CT600 return' }).locator('input').check();
+  await page.locator('button', { hasText: 'Save settings' }).click();
+  await page.waitForTimeout(200);
+  const s = await page.evaluate(() => window.__makeT().get('board', 'shared', 'settings'));
+  if (!s || s.cardBadges.accounts !== false || s.cardBadges.ctReturn !== true || s.custom !== 'keep-me') p.errors.push(`settings not saved right: ${JSON.stringify(s)}`);
+  await shot(page, 'settings-deadlines');
+  await done(p, 'settings: card-front deadlines');
+}
+{ // Table view: inline edit, sort, filter, group, columns, saved view, CSV.
+  const f = F();
+  store.cards.c2 = { values: { [f['Year end'].id]: '2026-03-31', [f['Company Number'].id]: '07654321' }, visible: null };
   const p = await fieldsPage('/views/fields-board.html');
   const { page } = p;
-  await page.locator('tbody tr').first().waitFor();
-  const rows = await page.locator('tbody tr').count();
+  await page.locator('.ftable tbody tr:not(.group-row)').first().waitFor();
+  const rows = () => page.locator('.ftable tbody tr:not(.group-row)').count();
+  if ((await rows()) !== 2) p.errors.push(`expected 2 rows, got ${await rows()}`);
+  // Inline segment edit on Beta.
+  const beta = page.locator('.ftable tbody tr', { hasText: 'Beta Ltd' });
+  await beta.locator('.segmented button', { hasText: 'Non-VAT' }).click();
+  await page.waitForTimeout(200);
+  if (store.cards.c2.values[f['VAT Status'].id] !== f['VAT Status'].options[1].id) p.errors.push('inline segment edit not saved');
+  // Click-to-edit text cell.
+  await beta.locator('td.t-text').click();
+  await beta.locator('td.t-text input').fill('01111111');
+  await beta.locator('td.t-text input').press('Enter');
+  await page.waitForTimeout(300);
+  if (store.cards.c2.values[f['Company Number'].id] !== '01111111') p.errors.push(`inline text edit not saved: ${JSON.stringify(store.cards.c2.values)}`);
+  // Sort by Year end.
   await page.locator('th', { hasText: 'Year end' }).click();
-  const first = await page.locator('tbody tr').first().locator('td').first().textContent();
-  if (rows !== 2 || !/Beta/.test(first)) p.errors.push(`table wrong: ${rows} rows, first after sort ${first}`);
-  const [download] = await Promise.all([page.waitForEvent('download'), page.locator('button', { hasText: 'Export CSV' }).click()]);
-  const csv = (await (await import('node:fs/promises')).readFile(await download.path(), 'utf8'));
-  if (!/"Card","List","Card link","VAT Status","Year end","Accounts Schedules Things to Check"/.test(csv) || !/August 2026 sales missing/.test(csv)) p.errors.push(`csv wrong: ${csv.slice(0, 200)}`);
+  const first = await page.locator('.ftable tbody tr:not(.group-row)').first().locator('td').first().textContent();
+  if (!/Beta/.test(first)) p.errors.push(`sort wrong, first row ${first}`);
+  // Filter VAT Status is VAT.
+  await page.locator('.tb', { hasText: 'Filter' }).click();
+  await page.locator('.tpanel button', { hasText: '+ Add filter' }).click();
+  await page.locator('.tpanel .prow select').nth(2).selectOption({ label: 'VAT' });
+  if ((await rows()) !== 1) p.errors.push(`filter should leave 1 row, got ${await rows()}`);
+  await page.locator('.tpanel button[aria-label="Remove filter"]').click();
+  // Group by VAT Status.
+  await page.locator('.tb', { hasText: 'Group by' }).click();
+  await page.locator('.tpanel select').selectOption({ label: 'VAT Status' });
+  const groups = await page.locator('.group-row').allTextContents();
+  if (groups.length !== 2) p.errors.push(`expected 2 groups, got ${groups.join(' / ')}`);
+  // Hide a column.
+  await page.locator('.tb', { hasText: 'Columns' }).click();
+  await page.locator('.col-grid label', { hasText: 'Members' }).locator('input').uncheck();
+  if (await page.locator('th', { hasText: 'Members' }).count()) p.errors.push('Members column still shown');
   await shot(page, 'fields-table');
-  console.log('  table rows:', rows, '· csv bytes:', csv.length);
-  await done(p, 'fields: board table + CSV');
+  // Save as a new view.
+  await page.locator('.view-tabs button[aria-label="New view"]').click();
+  await page.locator('.view-tabs input').fill('VAT clients');
+  await page.locator('.view-tabs input').press('Enter');
+  await page.waitForTimeout(300);
+  if (store.views.length !== 1 || store.views[0].name !== 'VAT clients' || store.views[0].groupBy !== f['VAT Status'].id) p.errors.push(`view not saved: ${JSON.stringify(store.views)}`);
+  // CSV.
+  const [download] = await Promise.all([page.waitForEvent('download'), page.locator('.tb', { hasText: 'Export to spreadsheet' }).click()]);
+  const csv = await (await import('node:fs/promises')).readFile(await download.path(), 'utf8');
+  if (!/"Name","List","VAT Status","Company Number","Year end","Rating","Debtors","Card link"/.test(csv) || !/August 2026 sales missing/.test(csv)) p.errors.push(`csv wrong: ${csv.slice(0, 200)}`);
+  console.log('  table rows:', 2, '· groups:', groups.length, '· csv bytes:', csv.length);
+  await done(p, 'fields: table view');
 }
 { // Without authorisation the tab asks for it instead of failing.
   const page = await context.newPage();

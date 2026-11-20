@@ -2,6 +2,7 @@ import { KEYS, STORAGE_LIMIT, CH_PROXY_URL } from '../config.js';
 import { initIframe, fit } from '../lib/iframe.js';
 import { set, getSettings, getAllShared } from '../lib/storage.js';
 import { FEATURES, boardDefaults } from '../lib/features.js';
+import { DEADLINE_BADGES, shownBadges } from '../lib/deadline-badges.js';
 import { authorize, isAuthorized, isConfigured } from '../lib/trello-api.js';
 import { byId, clear, el, jsonSize, setStatus } from '../lib/util.js';
 
@@ -35,16 +36,27 @@ async function render() {
     app.append(el('label', { class: 'row', style: 'text-transform:none;font-weight:400;margin:3px 0' }, featureBoxes[f.id], el('span', {}, f.label, ' ', el('small', { class: 'muted' }, f.desc))));
   }
 
-  app.append(el('h3', { style: 'margin-top:10px' }, 'Display'));
-  const stageBadges = el('input', { type: 'checkbox', checked: settings.stageBadges });
-  app.append(el('label', { class: 'row', style: 'text-transform:none' }, stageBadges, ' Show client stage badges on card fronts'));
+  app.append(el('h3', { style: 'margin-top:10px' }, 'Card-front deadlines'));
+  app.append(el('p', { class: 'muted' }, el('small', {}, 'Choose which deadlines appear as badges on the front of cards on this board. Badges for your own fields are chosen per field in Fields → Add / edit fields.')));
+  const shown = shownBadges(settings);
+  const badgeBoxes = {};
+  for (const group of [...new Set(DEADLINE_BADGES.map((b) => b.group))]) {
+    app.append(el('div', { class: 'muted', style: 'font-size:12px;font-weight:600;margin-top:6px' }, group));
+    for (const b of DEADLINE_BADGES.filter((x) => x.group === group)) {
+      badgeBoxes[b.id] = el('input', { type: 'checkbox', checked: shown[b.id] });
+      app.append(el('label', { class: 'row', style: 'text-transform:none;font-weight:400;margin:3px 0' }, badgeBoxes[b.id], el('span', {}, b.label)));
+    }
+  }
 
   const used = jsonSize(boardData);
   app.append(el('p', { class: 'muted' }, el('small', {}, `Board storage used: ${used} / ${STORAGE_LIMIT} characters (routines, audit log, settings).`)));
 
   app.append(el('p', {}, el('button', { class: 'primary', onclick: async () => {
     const nextDefaults = Object.fromEntries(FEATURES.map((f) => [f.id, featureBoxes[f.id].checked]));
-    await set(t, 'board', KEYS.settings, { chProxyUrl: proxy.value.trim().replace(/\/+$/, ''), stageBadges: stageBadges.checked, defaults: nextDefaults });
+    const cardBadges = Object.fromEntries(DEADLINE_BADGES.map((b) => [b.id, badgeBoxes[b.id].checked]));
+    // Keep any other settings keys; replace the ones edited here.
+    const { stageBadges, ...rest } = settings;
+    await set(t, 'board', KEYS.settings, { ...rest, chProxyUrl: proxy.value.trim().replace(/\/+$/, ''), cardBadges, defaults: nextDefaults });
     setStatus('Saved', 'success');
   } }, 'Save settings')));
   fit(t);

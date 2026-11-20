@@ -79,6 +79,25 @@ assert.deepEqual(badgesFor([vatField, yeField], { values: { v: 'y', d: '2000-01-
 assert.equal(badgesFor([vatField, yeField], { values: { v: 'y', d: '2000-01-01' }, visible: ['d'] })[0].color, 'red');
 assert.equal(csvCell('=HYPERLINK("x")'), `"'=HYPERLINK(""x"")"`, 'CSV formula injection is neutralised');
 assert.equal(csvCell('a "b"'), '"a ""b"""');
+const { shownBadges } = await import('../public/js/lib/deadline-badges.js');
+assert.equal(shownBadges({}).accounts, true);
+assert.equal(shownBadges({}).ctReturn, false, 'CT600 is off by default');
+assert.equal(shownBadges({ stageBadges: false }).crm_vat, false, 'old switch still respected');
+assert.equal(shownBadges({ stageBadges: false, cardBadges: { crm_vat: true } }).crm_vat, true, 'explicit choice wins');
+assert.equal(shownBadges({ cardBadges: { accounts: false, bogus: true } }).accounts, false);
+assert.equal(shownBadges({ cardBadges: { bogus: true } }).bogus, undefined);
+const { fromTemplate, TEMPLATES, sampleValue, formatNumber, isLayout: isLayoutField } = await import('../public/js/lib/fields.js');
+for (const tpl of TEMPLATES) {
+  const f = fromTemplate(tpl);
+  assert.ok(f.id && f.name && f.type, `template ${tpl.name} makes a field`);
+  if (!isLayoutField(f)) sampleValue(tpl, f);
+}
+assert.equal(formatNumber({ format: 'gbp', decimals: 2 }, 1500), '£1,500.00');
+assert.equal(formatNumber({ format: 'percent', decimals: 0 }, 72), '72%');
+assert.equal(formatValue({ type: 'multi', options: [{ id: 'a', label: 'A' }, { id: 'b', label: 'B' }] }, ['b', 'a']), 'B, A');
+assert.equal(formatValue({ type: 'rating', max: 5 }, 3, { short: true }), '★★★☆☆');
+assert.deepEqual(badgesFor([{ id: 'r', name: 'Docs', type: 'text', badge: true, required: true, shown: true }], { values: {}, visible: null }), [{ text: 'Docs: missing', color: 'red' }]);
+assert.deepEqual(badgesFor([{ id: 'c', name: 'VAT', type: 'choice', badge: true, badgeName: true, shown: true, options: [{ id: 'y', label: 'Yes', color: 'green' }] }], { values: { c: 'y' } }), [{ text: 'VAT: Yes', color: 'green' }]);
 const { resolve, builtInDefaults, FEATURE_IDS } = await import('../public/js/lib/features.js');
 const d = builtInDefaults();
 assert.ok(FEATURE_IDS.every((id) => d[id] === true));

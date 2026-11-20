@@ -13,7 +13,7 @@
 //                             every call needs the user's Trello token and is checked
 //                             against Trello before any data is read or written.
 
-import { sanitizeFields, sanitizeCardPatch, mergeValues, isTrelloId, ValidationError, LIMITS } from './fields.js';
+import { sanitizeFields, sanitizeCardPatch, sanitizeViews, mergeValues, isTrelloId, ValidationError, LIMITS } from './fields.js';
 
 const CH_BASE = 'https://api.company-information.service.gov.uk';
 const TRELLO_BASE = 'https://api.trello.com/1';
@@ -179,8 +179,8 @@ function parseJson(text, fallback) {
 }
 
 async function loadBoard(env, boardId) {
-  const row = await env.DB.prepare('SELECT defs, updated_at FROM boards WHERE board_id = ?1').bind(boardId).first();
-  return { fields: row ? parseJson(row.defs, []) : [], updatedAt: row ? row.updated_at : 0 };
+  const row = await env.DB.prepare('SELECT defs, updated_at, views FROM boards WHERE board_id = ?1').bind(boardId).first();
+  return { fields: row ? parseJson(row.defs, []) : [], updatedAt: row ? row.updated_at : 0, views: row ? parseJson(row.views, []) : [] };
 }
 
 async function loadCard(env, cardId) {
@@ -191,20 +191,33 @@ async function loadCard(env, cardId) {
 /**
  * GET   /fields/board/:boardId          -> { fields, updatedAt, cards: { cardId: { values, visible } } }
  * PUT   /fields/board/:boardId          <- { fields, updatedAt }  (updatedAt = the version you edited; 409 if it changed)
+ * PUT   /fields/board/:boardId/views    <- { views }  (saved table views; last save wins)
  * POST  /fields/board/:boardId/sample   <- any JSON (other Power-Ups' data, kept for setting up an import)
  * GET   /fields/card/:cardId            -> { boardId, fields, values, visible }
  * PATCH /fields/card/:cardId            <- { values?: { fieldId: value|null }, visible?: [fieldId]|null }
  */
 async function handleFields(request, url, env) {
   if (!env.DB) throw new HttpError(500, 'Fields storage (D1 binding DB) is not configured on the worker');
-  const m = url.pathname.match(/^\/fields\/(board|card)\/([^/]+)(\/sample)?\/?$/);
+  const m = url.pathname.match(/^\/fields\/(board|card)\/([^/]+)(?:\/(sample|views))?\/?$/);
   if (!m) throw new HttpError(404, 'Unknown fields route');
-  const [, kind, id, sample] = m;
+  const [, kind, id, sub] = m;
+  if (sub && kind !== 'board') throw new HttpError(404, 'Unknown fields route');
   const token = bearerToken(request);
   const { boardId } = await verifyAccess(token, kind, id);
   const method = request.method;
 
-  if (kind === 'board' && sample) {
+  if (sub === 'views') {
+    if (method !== 'PUT') throw new HttpError(405, 'Method not allowed');
+    const body = await readJson(request, 60000);
+    const views = sanitizeViews(body.views);
+    await env.DB.prepare(
+      `INSERT INTO boards (board_id, defs, updated_at, views) VALUES (?1, '[]', 0, ?2)
+       ON CONFLICT(board_id) DO UPDATE SET views = excluded.views`
+    ).bind(boardId, JSON.stringify(views)).run();
+    return { views };
+  }
+
+  if (sub === 'sample') {
     if (method !== 'POST') throw new HttpError(405, 'Method not allowed');
     const body = await readJson(request, 900000);
     await env.DB.prepare('INSERT INTO import_samples (board_id, created_at, body) VALUES (?1, ?2, ?3)').bind(boardId, Date.now(), JSON.stringify(body)).run();

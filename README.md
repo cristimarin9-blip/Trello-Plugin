@@ -17,7 +17,8 @@ A Trello Power-Up built for an accountancy practice. It adds, to any board you e
 | Scheduled card actions | Card button **Schedule action** (archive, move, complete, set priority at a date/time) |
 | Temporary cards | Card button **Temporary card** (auto-archive after a period) |
 | Bulk card actions | Board button **Bulk actions** |
-| Custom fields (text, notes with bullets, number, date, choice buttons, checkbox), per-card visible fields, badges, table + CSV, import scan | Card back → **Fields** tab (**Visible fields**, **Manage fields**) · board button **Fields** (Table / Manage fields / Import) · field badges on the card front |
+| Custom fields: text, multi-line notes, number/money/%, date, segment buttons, dropdown, coloured chips, checkbox, rating, progress bar, link, email, phone, section tabs and headings; per-card visible fields; badges; table view with filter/sort/columns/group/saved views/inline editing/export | Card back → **Fields** tab (**Visible fields**, **Manage fields**) · board button **Fields** (Table view / Add / edit fields / Import) · field badges on the card front |
+| Choose which deadlines show on card fronts | Power-Up settings → **Card-front deadlines** |
 | Feature switches: defaults for cards, per-card and bulk on/off | Power-Up settings → **Default features for cards** · card back → **⚙ Features** tab · Bulk actions → *Turn feature ON/OFF* / *Reset to board defaults* |
 
 `docs/FEATURES.md` explains how each one works and where Trello's Power-Up platform limits what is possible (for example, Trello gives no real "viewed" or "logged in" events, and a Power-Up cannot place a search box inside a list header).
@@ -166,6 +167,7 @@ Now open a client card → **Company** tab → type the company number and click
 ## Day-to-day
 
 * **Changing the Power-Up**: edit files under `public/`, push to `main`, wait ~1 minute, hard-refresh Trello.
+* **Database changes**: new columns go in `worker/schema.sql` (fresh databases) and a numbered file in `worker/migrations/` (existing databases: `npx wrangler d1 execute keel-fields --remote --file=migrations/<file>.sql`), applied before deploying the worker that needs them.
 * **Changing the worker**: anything under `worker/` is not deployed by GitHub; run `npx wrangler deploy` in `worker/` (it has two modules, `src/index.js` and `src/fields.js`, plus the D1 binding in `wrangler.toml`, so use wrangler rather than pasting into the dashboard editor).
 * **Fields storage**: field definitions and values live in the D1 database `keel-fields` on the Cloudflare account (schema in `worker/schema.sql`). The worker only reads or writes after Trello confirms, with the user's own Keel authorisation, that they can open that board or card. Fields therefore need each person to have clicked **Authorise**.
 * **Checks before pushing**: `npm run check` parses every module and runs the date/number unit tests; `npm run smoke` loads every page in headless Chromium with a fake Trello client (needs Playwright installed locally: `npm i -D playwright && npx playwright install chromium`). The **Check** GitHub Action runs `npm run check` on every push.

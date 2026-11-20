@@ -1,6 +1,7 @@
 // Feature: accountancy client stage tracker (bookkeeping, accounts, VAT, PAYE).
 import { KEYS } from '../config.js';
 import { get, getSettings } from '../lib/storage.js';
+import { shownBadges } from '../lib/deadline-badges.js';
 import { addMonths, monthsFromEnd, daysUntil, deadlineColor, formatDate, viewUrl } from '../lib/util.js';
 
 export const TRACKS = {
@@ -63,11 +64,10 @@ export function summarize(crm, company) {
 
 export async function cardBadges(t, enabled) {
   if (enabled && !enabled.crm) return [];
-  const settings = await getSettings(t);
-  if (!settings.stageBadges) return [];
+  const show = shownBadges(await getSettings(t));
   const [crm, company] = await Promise.all([get(t, 'card', KEYS.crm), get(t, 'card', KEYS.company)]);
   return summarize(crm, company)
-    .filter((s) => !s.final)
+    .filter((s) => !s.final && show[`crm_${s.key}`])
     .map((s) => ({ text: `${s.short}: ${s.stage}${s.due ? ` · ${formatDate(s.due, { year: undefined })}` : ''}`, color: s.color }));
 }
 

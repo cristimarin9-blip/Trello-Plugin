@@ -3,7 +3,8 @@
 CREATE TABLE IF NOT EXISTS boards (
   board_id   TEXT PRIMARY KEY,
   defs       TEXT NOT NULL,            -- JSON list of field definitions
-  updated_at INTEGER NOT NULL
+  updated_at INTEGER NOT NULL,
+  views      TEXT                      -- JSON list of saved table views
 );
 CREATE TABLE IF NOT EXISTS cards (
   card_id    TEXT PRIMARY KEY,

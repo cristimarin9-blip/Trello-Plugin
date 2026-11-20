@@ -13,7 +13,7 @@ export async function cardBadges(t, enabled) {
 }
 
 export function openBoard(t, tab = 'table') {
-  return t.modal({ title: 'Fields', url: viewUrl('fields-board.html'), args: { tab }, fullscreen: false, height: 640 });
+  return t.modal({ title: 'Fields', url: viewUrl('fields-board.html'), args: { tab }, fullscreen: true });
 }
 
 export function boardButtons(icon) {

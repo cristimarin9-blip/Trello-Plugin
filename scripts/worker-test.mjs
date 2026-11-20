@@ -72,7 +72,7 @@ assert.equal((await call('GET', '/fields/card/not-an-id')).status, 400);
 // Empty board.
 let r = await call('GET', `/fields/board/${BOARD}`);
 assert.equal(r.status, 200);
-assert.deepEqual(r.body, { fields: [], updatedAt: 0, cards: {} });
+assert.deepEqual(r.body, { fields: [], updatedAt: 0, views: [], cards: {} });
 assert.equal(r.headers.get('Cache-Control'), 'no-store');
 
 // Define fields.
@@ -134,6 +134,71 @@ await call('PATCH', `/fields/card/${CARD2}`, { body: { values: { vat: 'n' } } })
 r = await call('GET', `/fields/board/${BOARD}`);
 assert.deepEqual(Object.keys(r.body.cards).sort(), [CARD, CARD2].sort());
 assert.equal(r.body.cards[CARD2].values.vat, 'n');
+
+// New field types, layout fields and display options.
+r = await call('GET', `/fields/board/${BOARD}`);
+const v2 = r.body.updatedAt;
+const rich = [
+  ...r.body.fields,
+  { id: 'sec', name: 'Accounts Schedules Things to Check', type: 'section', collapsed: true, shown: true, badge: true },
+  { id: 'hdr', name: 'Balance sheet', type: 'header', color: 'blue' },
+  { id: 'deb', name: 'Debtors', type: 'notes', width: 'half', label: 'left', help: 'What is missing', placeholder: '- item', required: true },
+  { id: 'tags', name: 'Services', type: 'multi', options: [{ id: 'bk', label: 'Bookkeeping', color: 'green' }, { id: 'pr', label: 'Payroll', color: 'blue' }] },
+  { id: 'stars', name: 'Client rating', type: 'rating', max: 7, badge: true, badgeName: true },
+  { id: 'pct', name: 'Progress', type: 'progress' },
+  { id: 'web', name: 'Website', type: 'url' },
+  { id: 'mail', name: 'Email', type: 'email' },
+  { id: 'tel', name: 'Phone', type: 'phone' },
+  { id: 'fee2', name: 'Annual fee', type: 'number', format: 'gbp', decimals: 9, width: 'nope' },
+  { id: 'st', name: 'Status', type: 'choice', display: 'dropdown', options: [{ id: 'a', label: 'Open' }] }
+];
+r = await call('PUT', `/fields/board/${BOARD}`, { body: { fields: rich, updatedAt: v2 } });
+assert.equal(r.status, 200, JSON.stringify(r.body));
+const byId = Object.fromEntries(r.body.fields.map((f) => [f.id, f]));
+assert.deepEqual(byId.sec, { id: 'sec', name: 'Accounts Schedules Things to Check', type: 'section', color: '', collapsed: true }, 'layout fields keep only layout props');
+assert.equal(byId.hdr.color, 'blue');
+assert.equal(byId.deb.width, 'half');
+assert.equal(byId.deb.label, 'left');
+assert.equal(byId.deb.required, true);
+assert.equal(byId.stars.max, 7);
+assert.equal(byId.stars.badgeName, true);
+assert.equal(byId.fee2.decimals, 2, 'bad decimals fall back');
+assert.equal(byId.fee2.width, 'full', 'bad width falls back');
+assert.equal(byId.st.display, 'dropdown');
+r = await call('PATCH', `/fields/card/${CARD}`, { body: { values: { tags: ['pr', 'bk', 'pr'], stars: 6, pct: '42.25%', web: 'example.com/x', mail: 'a@b.co', tel: '+44 (0)20 7946 0000', fee2: '£1,200' } } });
+assert.equal(r.status, 200, JSON.stringify(r.body));
+assert.deepEqual(r.body.values.tags, ['pr', 'bk']);
+assert.equal(r.body.values.pct, 42.3);
+assert.equal(r.body.values.web, 'https://example.com/x');
+assert.equal(r.body.values.fee2, 1200);
+for (const values of [{ sec: 'x' }, { tags: ['zz'] }, { stars: 8 }, { pct: 101 }, { web: 'javascript:alert(1)' }, { mail: 'nope' }, { tel: 'call me' }]) {
+  const bad = await call('PATCH', `/fields/card/${CARD}`, { body: { values } });
+  assert.equal(bad.status, 400, `${JSON.stringify(values)} -> ${bad.status}`);
+}
+r = await call('PATCH', `/fields/card/${CARD}`, { body: { visible: ['sec', 'deb', 'tags'] } });
+assert.deepEqual(r.body.visible, ['deb', 'tags'], 'layout fields are not part of the visible list');
+r = await call('PATCH', `/fields/card/${CARD}`, { body: { values: { tags: [], stars: 0 } } });
+assert.equal(r.body.values.tags, undefined, 'empty multi clears');
+assert.equal(r.body.values.stars, undefined, 'zero rating clears');
+
+// Saved table views.
+r = await call('PUT', `/fields/board/${OTHER_BOARD}/views`, { body: { views: [] } });
+assert.equal(r.status, 403);
+const views = [{ id: 'main', name: 'Main Table', search: ' acme ', filters: [{ field: 'vat', op: 'is', value: 'v' }, { field: '', op: 'is' }, { field: 'num', op: 'bogus', value: 'x' }], sort: { field: 'ye', dir: -1 }, columns: ['vat', 'ye'], groupBy: '__list', limit: 999 }];
+r = await call('PUT', `/fields/board/${BOARD}/views`, { body: { views } });
+assert.equal(r.status, 200, JSON.stringify(r.body));
+assert.deepEqual(r.body.views[0], { id: 'main', name: 'Main Table', search: 'acme', filters: [{ field: 'vat', op: 'is', value: 'v' }, { field: 'num', op: 'is', value: 'x' }], sort: { field: 'ye', dir: -1 }, columns: ['vat', 'ye'], groupBy: '__list', limit: 250 });
+r = await call('GET', `/fields/board/${BOARD}`);
+assert.equal(r.body.views.length, 1);
+assert.equal(r.body.fields.length, rich.length, 'saving views keeps the fields');
+assert.equal((await call('PUT', `/fields/board/${BOARD}/views`, { body: { views: [{ id: 'x' }] } })).status, 400);
+assert.equal((await call('PUT', `/fields/card/${CARD}/views`, { body: { views: [] } })).status, 404);
+// Views on a board that has no fields yet.
+access['good-token-1'].boards.push('f'.repeat(24));
+r = await call('PUT', `/fields/board/${'f'.repeat(24)}/views`, { body: { views: [{ id: 'v', name: 'V' }] } });
+assert.equal(r.status, 200);
+r = await call('PUT', `/fields/board/${'f'.repeat(24)}`, { body: { fields: [{ id: 'a', name: 'A', type: 'text' }], updatedAt: 0 } });
+assert.equal(r.status, 200, 'first field save works after views were saved');
 
 // Import sample is stored.
 r = await call('POST', `/fields/board/${BOARD}/sample`, { body: { board: [{ idPlugin: 'p', value: '{}' }] } });
