@@ -126,6 +126,50 @@ await visit('/views/card-back.html', true, async (page) => {
     console.log(`  tab ${label}: ${body}`);
   }
 });
+// Company tab: search by name, pick a result, snapshot is saved; a pre-search worker gives a clear message.
+const PROXY = 'https://proxy.test';
+const companyJson = { number: 'SC000001', name: 'ACME (SCOTLAND) LTD', status: 'active', type: 'ltd', incorporated: '2001-02-03', address: '2 Road, Glasgow', sic: [],
+  accounts: { nextDue: '2026-12-31', nextMadeUpTo: '2026-03-31', overdue: false, lastMadeUpTo: '2025-03-31', ard: '31/03' },
+  confirmation: { nextDue: '2026-12-01', nextMadeUpTo: '2026-11-17', overdue: false }, officers: [] };
+let oldWorker = false;
+await context.route(`${PROXY}/**`, (route) => {
+  const url = new URL(route.request().url());
+  const reply = (status, body) => route.fulfill({ status, contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify(body) });
+  if (url.pathname === '/search') return oldWorker ? reply(404, { error: 'Use /company/{companyNumber}' }) : reply(200, { items: [
+    { number: 'SC000001', name: 'ACME (SCOTLAND) LTD', status: 'active', incorporated: '2001-02-03', address: '2 Road, Glasgow' },
+    { number: '00000099', name: 'ACME OLD LTD', status: 'dissolved', address: '9 Lane, Leeds' }] });
+  if (url.pathname === '/company/SC000001') return reply(200, companyJson);
+  return reply(404, { error: 'Company not found' });
+});
+await visit('/views/card-back.html', false, async (page, errors) => {
+  await page.evaluate((proxy) => { const t = window.__makeT(); return t.set('board', 'shared', 'settings', { chProxyUrl: proxy }).then(() => window.__render()); }, PROXY);
+  await page.locator('.tabs button', { hasText: 'Company' }).click();
+  const input = page.locator('#tab-body input[type=text]');
+  const button = page.locator('#tab-body button.primary');
+  await input.fill('acme');
+  if ((await button.textContent()) !== 'Search') errors.push(`button should read Search for a name, got ${await button.textContent()}`);
+  await button.click();
+  await page.locator('#tab-body .card-list li').first().waitFor();
+  const rows = await page.locator('#tab-body .card-list li').count();
+  if (rows !== 2) errors.push(`expected 2 search results, got ${rows}`);
+  await page.locator('#tab-body .card-list li', { hasText: 'ACME (SCOTLAND) LTD' }).click();
+  await page.locator('#tab-body dl.kv').first().waitFor();
+  const saved = await page.evaluate(() => window.__makeT().get('card', 'shared', 'company'));
+  if (!saved || saved.number !== 'SC000001' || saved.accountsDue !== '2026-12-31') errors.push(`snapshot not saved after picking: ${JSON.stringify(saved)}`);
+  if (!(await page.locator('#tab-body').textContent()).includes('ACME (SCOTLAND) LTD')) errors.push('picked company not shown');
+  await input.fill('sc 000001');
+  if ((await button.textContent()) !== 'Refresh') errors.push(`button should read Refresh for the saved number, got ${await button.textContent()}`);
+  oldWorker = true;
+  await input.fill('acme');
+  await button.click();
+  await page.waitForTimeout(300);
+  const status = await page.locator('#status').textContent();
+  // The browser logs the deliberate 404 from the simulated old worker; that one is expected.
+  for (let i = errors.length - 1; i >= 0; i -= 1) if (/status of 404/.test(errors[i])) errors.splice(i, 1);
+  if (!/updated proxy worker/.test(status)) errors.push(`old worker should explain the update, got: ${status}`);
+  console.log('  search flow: results', rows, '· saved', saved && saved.name, '· old worker:', status.slice(0, 60));
+});
+
 for (const path of ['/views/relationships.html', '/views/schedule.html', '/views/schedule.html?mode=temp', '/views/list-filter.html?listId=l1&listName=To%20do', '/views/settings.html', '/views/authorize.html', '/views/oauth-callback.html', '/views/crm-board.html', '/views/routines.html', '/views/bulk.html', '/views/audit.html']) {
   await visit(path, true);
 }

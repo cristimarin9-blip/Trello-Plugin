@@ -5,7 +5,7 @@ A Trello Power-Up built for an accountancy practice. It adds, to any board you e
 | Feature | Where you find it in Trello |
 |---|---|
 | Card priority (Urgent / High / Medium / Low) | Badge on the card front · "Priority" badge on the card back · list menu → *Sort by* → Priority |
-| Companies House lookup + deadlines at a glance | Card back → **Keel** section → **Company** tab · deadline badges on the card front |
+| Companies House lookup (by number or name) + deadlines at a glance | Card back → **Keel** section → **Company** tab · deadline badges on the card front |
 | Client CRM (bookkeeping / accounts / VAT / PAYE stages) | Card back → **Client stages** tab · board button **Client CRM** (all clients in one table, CSV export) |
 | Task card ↔ subtask cards | Card button **Subtasks** · card back → **Subtasks** tab · badges "↑ parent" and "☑ 2/5 subtasks" |
 | Checklist sub-points and ordering | Card back → **Checklist** tab (numbered 1, 1.1, 1.2…, move up/down, indent/outdent) |
@@ -158,13 +158,14 @@ Test it in a browser: `<worker-url>/company/00000006` should return JSON for a r
 
 Board → Power-Up gear icon → **Settings** → paste the worker URL into **Proxy URL** → **Save settings**.
 
-Now open a client card → **Company** tab → type the company number → **Look up**. The card front gets badges for accounts, confirmation statement and estimated corporation-tax deadlines, coloured red/orange/yellow/green by proximity. Snapshots refresh automatically when a card is opened after 24 hours.
+Now open a client card → **Company** tab → type the company number and click **Look up**, or type part of the company name and click **Search**, then click the right company in the list. The card front gets badges for accounts, confirmation statement and estimated corporation-tax deadlines, coloured red/orange/yellow/green by proximity. Snapshots refresh automatically when a card is opened after 24 hours.
 
 ---
 
 ## Day-to-day
 
 * **Changing the Power-Up**: edit files under `public/`, push to `main`, wait ~1 minute, hard-refresh Trello.
+* **Changing the worker**: anything under `worker/` is not deployed by GitHub; run `npx wrangler deploy` in `worker/`, or paste `worker/src/index.js` into the worker's editor in the Cloudflare dashboard and click **Deploy**.
 * **Checks before pushing**: `npm run check` parses every module and runs the date/number unit tests; `npm run smoke` loads every page in headless Chromium with a fake Trello client (needs Playwright installed locally: `npm i -D playwright && npx playwright install chromium`). The **Check** GitHub Action runs `npm run check` on every push.
 * **Testing without deploying**: Trello only loads HTTPS pages, so serve `public/` locally (`npm run serve`) and expose it with a tunnel such as `npx cloudflared tunnel --url http://localhost:8080` or ngrok, then create a second Power-Up ("Keel DEV") in the admin portal pointing at the tunnel URL.
 * **Other workspaces**: a custom Power-Up is only listed in the workspace chosen in step 3. Create another Power-Up entry per workspace (same URL), or go through Trello's public-listing review.
@@ -178,6 +179,7 @@ Now open a client card → **Company** tab → type the company number → **Loo
 | "Authorise" popup shows an error or never closes | Callback URL in the OAuth 2.0 tab does not match `.../views/oauth-callback.html` exactly, the OAuth 2.0 settings were not saved, or `OAUTH_CLIENT_ID` is still the placeholder (step 3) |
 | Authorised on one board but not another | OAuth 2.0 tokens for Power-Ups are per workspace; authorise again on a board in the other workspace |
 | Checklist / History tab says "Authorise…" | That browser has not authorised yet — Power-Up gear → Settings → Authorise |
+| "Name search needs the updated proxy worker" | The worker was deployed before name search existed: redeploy `worker/src/index.js` (`npx wrangler deploy`, or paste it into the Cloudflare editor and click Deploy) |
 | Companies House lookup fails | Proxy URL not saved, worker not deployed, `CH_API_KEY` secret missing, or `ALLOWED_ORIGINS` does not match the Pages origin |
 | "Too much routine text" | Trello allows 4 KB of Power-Up data per board; shorten or delete routines |
 | Scheduled action did not run at the exact time | Actions run when a board member next opens the board (see `docs/FEATURES.md`); use Trello Automation for exact timing |

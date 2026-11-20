@@ -23,8 +23,8 @@ for (const file of files) {
 // Pure-logic unit checks (no Trello needed).
 const { daysUntil, addMonths, monthsFromEnd, deadlineColor } = await import('../public/js/lib/util.js');
 const { numberItems, depthOf, withDepth } = await import('../public/js/tabs/checklist.js');
-const { normaliseNumber, toSnapshot } = await import('../public/js/tabs/company.js');
-const { shapeCompany } = await import('../worker/src/index.js');
+const { normaliseNumber, toSnapshot, looksLikeCompanyNumber } = await import('../public/js/tabs/company.js');
+const { shapeCompany, shapeSearch } = await import('../worker/src/index.js');
 const { TRACKS } = await import('../public/js/features/crm.js');
 
 assert.equal(addMonths('2025-03-31', 9, 1), '2026-01-01');
@@ -56,6 +56,18 @@ const snap = toSnapshot(shaped);
 assert.equal(snap.ctPaymentDue, '2026-04-01');
 assert.equal(snap.ctReturnDue, '2026-06-30');
 assert.ok(JSON.stringify(snap).length < 1200, 'snapshot stays small');
+for (const n of ['00000006', '6', ' 1234 5678 ', 'SC123456', 'sc123456', 'NI012345', 'OC301234', 'R0123456']) assert.ok(looksLikeCompanyNumber(n), `${n} is a company number`);
+for (const n of ['Acme Ltd', 'acme', '3M', 'BT', '123456789', 'SC12345', 'ABC12345', '']) assert.ok(!looksLikeCompanyNumber(n), `${n} is a name`);
+const found = shapeSearch({ items: [
+  { company_number: '00000006', title: 'TEST LTD', company_status: 'active', company_type: 'ltd', date_of_creation: '2010-01-01', address_snippet: '1 Street, Town, AB1 2CD' },
+  { company_number: 'SC000001', title: 'OLD LTD', company_status: 'dissolved', address: { address_line_1: '2 Road', locality: 'Glasgow' } },
+  { title: 'NO NUMBER' }
+] });
+assert.equal(found.length, 2, 'items without a company number are dropped');
+assert.deepEqual(found[0], { number: '00000006', name: 'TEST LTD', status: 'active', type: 'ltd', incorporated: '2010-01-01', ceased: null, address: '1 Street, Town, AB1 2CD' });
+assert.equal(found[1].address, '2 Road, Glasgow');
+assert.deepEqual(shapeSearch({}), []);
+assert.deepEqual(shapeSearch(null), []);
 const { resolve, builtInDefaults, FEATURE_IDS } = await import('../public/js/lib/features.js');
 const d = builtInDefaults();
 assert.ok(FEATURE_IDS.every((id) => d[id] === true));
