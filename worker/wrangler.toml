@@ -7,3 +7,11 @@ compatibility_date = "2025-01-01"
 [vars]
 # Comma-separated list of origins allowed to call this worker. Use your GitHub Pages origin.
 ALLOWED_ORIGINS = "https://cristimarin9-blip.github.io"
+
+# Keel "Fields" storage. Create once with:
+#   npx wrangler d1 create keel-fields
+#   npx wrangler d1 execute keel-fields --remote --file=schema.sql
+[[d1_databases]]
+binding = "DB"
+database_name = "keel-fields"
+database_id = "d7e228ba-c0f0-422e-905d-d92cb6ab6e08"

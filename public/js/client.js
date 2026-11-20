@@ -14,6 +14,7 @@ import * as bulk from './features/bulk.js';
 import * as audit from './features/audit.js';
 import * as listFilter from './features/list-filter.js';
 import * as settings from './features/settings.js';
+import * as fields from './features/fields.js';
 
 const ICON = new URL('../img/icon.svg', import.meta.url).href;
 const BOARD_ICON = {
@@ -32,7 +33,7 @@ async function collect(t, ...providers) {
 }
 
 window.TrelloPowerUp.initialize({
-  'card-badges': (t) => collect(t, priority.cardBadges, companiesHouse.cardBadges, crm.cardBadges, relationships.cardBadges, scheduler.cardBadges),
+  'card-badges': (t) => collect(t, priority.cardBadges, companiesHouse.cardBadges, crm.cardBadges, fields.cardBadges, relationships.cardBadges, scheduler.cardBadges),
 
   'card-detail-badges': (t) => collect(t, priority.cardDetailBadges, companiesHouse.cardDetailBadges, crm.cardDetailBadges, relationships.cardDetailBadges, views.cardDetailBadges),
 
@@ -62,6 +63,7 @@ window.TrelloPowerUp.initialize({
     scheduler.runDueActions(t);
     return [
       ...crm.boardButtons(BOARD_ICON),
+      ...fields.boardButtons(BOARD_ICON),
       ...bulk.boardButtons(BOARD_ICON),
       ...routines.boardButtons(BOARD_ICON),
       ...audit.boardButtons(BOARD_ICON)

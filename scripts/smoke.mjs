@@ -32,7 +32,7 @@ const MOCK = `
       render: (fn) => { window.__render = fn; return fn(); },
       sizeTo: async () => {}, signUrl: (u) => u, popup: async () => {}, modal: async () => {}, closePopup: async () => {}, closeModal: async () => {},
       showCard: async () => {}, alert: () => {},
-      getOAuth2ApiClient: () => ({ getAccessToken: async () => null, authorize: async () => {}, redirectUriCallback: async () => {} })
+      getOAuth2ApiClient: () => ({ getAccessToken: async () => window.__token || null, authorize: async () => {}, redirectUriCallback: async () => {} })
     };
   }
   window.TrelloPowerUp = {
@@ -180,7 +180,160 @@ await visit('/views/card-back.html', false, async (page, errors) => {
   console.log('  search flow: results', rows, '· saved', saved && saved.name, '· old worker:', status.slice(0, 60));
 });
 
-for (const path of ['/views/relationships.html', '/views/schedule.html', '/views/schedule.html?mode=temp', '/views/list-filter.html?listId=l1&listName=To%20do', '/views/settings.html', '/views/authorize.html', '/views/oauth-callback.html', '/views/crm-board.html', '/views/routines.html', '/views/bulk.html', '/views/audit.html']) {
+// --- Fields: set up, fill in, visible fields, badges, table + CSV -----------------
+const store = { boards: {}, cards: {} };
+const fieldRequests = [];
+await context.route('https://trello-companies-house-proxy.kabooom.workers.dev/fields/**', async (route) => {
+  const req = route.request();
+  const headers = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET, PUT, PATCH, POST, OPTIONS', 'Access-Control-Allow-Headers': 'Accept, Content-Type, Authorization' };
+  if (req.method() === 'OPTIONS') return route.fulfill({ status: 204, headers });
+  const reply = (status, body) => route.fulfill({ status, headers, contentType: 'application/json', body: JSON.stringify(body) });
+  if (req.headers().authorization !== 'Bearer test-token') return reply(401, { error: 'Authorise Keel first' });
+  const [, kind, id] = new URL(req.url()).pathname.match(/^\/fields\/(board|card)\/([^/]+)/);
+  const body = req.postData() ? JSON.parse(req.postData()) : null;
+  fieldRequests.push(`${req.method()} ${kind}`);
+  const boardOf = () => store.boards.b1 || { fields: [], updatedAt: 0 };
+  if (kind === 'board' && req.method() === 'GET') return reply(200, { ...boardOf(), cards: store.cards });
+  if (kind === 'board' && req.method() === 'PUT') {
+    if (body.updatedAt !== boardOf().updatedAt) return reply(409, { error: 'Someone else changed the fields' });
+    store.boards.b1 = { fields: body.fields, updatedAt: Date.now() };
+    return reply(200, store.boards.b1);
+  }
+  const card = store.cards[id] || { values: {}, visible: null };
+  if (req.method() === 'GET') return reply(200, { boardId: 'b1', fields: boardOf().fields, values: card.values, visible: card.visible });
+  if (body.values) for (const [k, v] of Object.entries(body.values)) { if (v === null || v === false) delete card.values[k]; else card.values[k] = v; }
+  if ('visible' in body) card.visible = body.visible;
+  store.cards[id] = card;
+  return reply(200, { boardId: 'b1', values: card.values, visible: card.visible });
+});
+
+async function fieldsPage(path) {
+  const page = await context.newPage();
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
+  page.on('console', (m) => { if (m.type() === 'error') errors.push(`console: ${m.text()}`); });
+  await page.addInitScript(() => { window.__token = 'test-token'; });
+  await page.goto(`${BASE}${path}`, { waitUntil: 'networkidle' });
+  return { page, errors };
+}
+// SHOTS=dir npm run smoke  saves screenshots of the Fields pages.
+const shot = (page, name) => (process.env.SHOTS ? page.screenshot({ path: `${process.env.SHOTS}/${name}.png`, fullPage: true }) : null);
+const done = async ({ page, errors }, label) => { errors.forEach((e) => problems.push(`${label}: ${e}`)); console.log(`${errors.length ? '✗' : '✓'} ${label}`); await page.close(); };
+
+{ // Card with no fields yet offers set-up.
+  const p = await fieldsPage('/views/card-back.html');
+  await p.page.locator('.tabs button', { hasText: 'Fields' }).click();
+  await p.page.locator('#tab-body button', { hasText: 'Set up fields' }).waitFor();
+  await done(p, 'fields: empty board offers set-up');
+}
+{ // Define fields in the board modal.
+  const p = await fieldsPage('/views/fields-board.html?tab=manage');
+  const { page } = p;
+  const add = page.locator('button', { hasText: '+ Add field' });
+  await add.click();
+  await page.locator('.track').nth(0).locator('input[type=text]').first().fill('VAT Status');
+  await page.locator('.track').nth(0).locator('select').first().selectOption('choice');
+  await page.locator('.track').nth(0).locator('.options input[type=text]').nth(0).fill('VAT');
+  await page.locator('.track').nth(0).locator('button', { hasText: '+ Add option' }).click();
+  await page.locator('.track').nth(0).locator('.options input[type=text]').nth(1).fill('Non-VAT');
+  await page.locator('.track').nth(0).locator('label', { hasText: 'Badge on card front' }).locator('input').check();
+  await add.click();
+  await page.locator('.track').nth(1).locator('input[type=text]').first().fill('Accounts Schedules Things to Check');
+  await page.locator('.track').nth(1).locator('select').first().selectOption('notes');
+  if (!(await page.locator('.track').nth(1).locator('label', { hasText: 'Badge on card front' }).locator('input').isDisabled())) p.errors.push('notes badge should be disabled');
+  await add.click();
+  await page.locator('.track').nth(2).locator('input[type=text]').first().fill('Year end');
+  await page.locator('.track').nth(2).locator('select').first().selectOption('date');
+  await page.locator('.track').nth(2).locator('button[aria-label="Move up"]').click();
+  await page.locator('button', { hasText: 'Save fields' }).click();
+  await page.waitForTimeout(400);
+  const names = (store.boards.b1 && store.boards.b1.fields || []).map((f) => `${f.name}:${f.type}`);
+  if (names.join('|') !== 'VAT Status:choice|Year end:date|Accounts Schedules Things to Check:notes') p.errors.push(`fields not saved as expected: ${names.join('|')}`);
+  if (!/Fields saved/.test(await page.locator('#status').textContent())) p.errors.push('no saved message');
+  // Empty name is refused before saving.
+  await add.click();
+  await page.locator('button', { hasText: 'Save fields' }).click();
+  if (!/needs a name/.test(await page.locator('#status').textContent())) p.errors.push('empty field name was not refused');
+  await shot(page, 'fields-manage');
+  console.log('  fields defined:', names.join(' | '));
+  await done(p, 'fields: manage');
+}
+{ // Fill in a card.
+  const p = await fieldsPage('/views/card-back.html');
+  const { page } = p;
+  await page.locator('.tabs button', { hasText: 'Fields' }).click();
+  await page.locator('.segmented button', { hasText: 'Non-VAT' }).click();
+  await page.waitForTimeout(300);
+  await page.locator('input[type=date]').fill('2026-08-31');
+  await page.locator('input[type=date]').dispatchEvent('change');
+  await page.waitForTimeout(300);
+  await page.locator('.notes-view').click();
+  await page.locator('textarea').fill('Debtors\n- August 2026 sales missing\n- Sales not received?\nCreditors\n- Wages - 750.80 difference');
+  await page.locator('button', { hasText: 'Save' }).first().click();
+  await page.locator('.notes h4').first().waitFor();
+  const heads = await page.locator('.notes h4').allTextContents();
+  const bullets = await page.locator('.notes li').count();
+  if (heads.join('|') !== 'Debtors|Creditors' || bullets !== 3) p.errors.push(`notes rendered wrong: ${heads} / ${bullets}`);
+  const card = store.cards.c1 || { values: {} };
+  const fieldIds = store.boards.b1.fields.map((f) => f.id);
+  const vat = store.boards.b1.fields[0];
+  if (card.values[fieldIds[0]] !== vat.options[1].id || card.values[fieldIds[1]] !== '2026-08-31' || !/Debtors/.test(card.values[fieldIds[2]] || '')) p.errors.push(`card values wrong: ${JSON.stringify(card.values)}`);
+  // Clicking the selected option again clears it.
+  await page.locator('.segmented button', { hasText: 'Non-VAT' }).click();
+  await page.waitForTimeout(300);
+  if (store.cards.c1.values[fieldIds[0]] !== undefined) p.errors.push('choice did not clear');
+  await page.locator('.segmented button', { hasText: 'VAT' }).first().click();
+  await page.waitForTimeout(300);
+  // Visible fields: None hides everything, Board default restores.
+  await page.locator('button', { hasText: 'Visible fields' }).click();
+  await page.locator('.track button', { hasText: 'None' }).click();
+  await page.waitForTimeout(300);
+  if (!/No fields are shown/.test(await page.locator('#tab-body').textContent())) p.errors.push('None did not hide fields');
+  await page.locator('.track label', { hasText: 'VAT Status' }).locator('input').check();
+  await page.waitForTimeout(300);
+  if (JSON.stringify(store.cards.c1.visible) !== JSON.stringify([fieldIds[0]])) p.errors.push(`visible list wrong: ${JSON.stringify(store.cards.c1.visible)}`);
+  await page.locator('.track button', { hasText: 'Board default' }).click();
+  await page.waitForTimeout(300);
+  if (store.cards.c1.visible !== null) p.errors.push('board default not restored');
+  await page.locator('button', { hasText: 'Visible fields' }).click();
+  await shot(page, 'fields-card');
+  console.log('  card values:', JSON.stringify(store.cards.c1.values).slice(0, 90));
+  await done(p, 'fields: card tab');
+}
+{ // Badges from the connector.
+  const p = await fieldsPage('/index.html');
+  const badges = await p.page.evaluate(async () => { const t = window.__makeT(); return (await window.__caps['card-badges'](t)).map((b) => `${b.text}/${b.color || ''}`); });
+  if (!badges.includes('VAT/green')) p.errors.push(`VAT badge missing: ${badges.join(' | ')}`);
+  console.log('  badges:', badges.join(' | '));
+  await done(p, 'fields: card-front badge');
+}
+{ // Board table, sort and CSV.
+  store.cards.c2 = { values: { [store.boards.b1.fields[1].id]: '2026-03-31' }, visible: null };
+  const p = await fieldsPage('/views/fields-board.html');
+  const { page } = p;
+  await page.locator('tbody tr').first().waitFor();
+  const rows = await page.locator('tbody tr').count();
+  await page.locator('th', { hasText: 'Year end' }).click();
+  const first = await page.locator('tbody tr').first().locator('td').first().textContent();
+  if (rows !== 2 || !/Beta/.test(first)) p.errors.push(`table wrong: ${rows} rows, first after sort ${first}`);
+  const [download] = await Promise.all([page.waitForEvent('download'), page.locator('button', { hasText: 'Export CSV' }).click()]);
+  const csv = (await (await import('node:fs/promises')).readFile(await download.path(), 'utf8'));
+  if (!/"Card","List","Card link","VAT Status","Year end","Accounts Schedules Things to Check"/.test(csv) || !/August 2026 sales missing/.test(csv)) p.errors.push(`csv wrong: ${csv.slice(0, 200)}`);
+  await shot(page, 'fields-table');
+  console.log('  table rows:', rows, '· csv bytes:', csv.length);
+  await done(p, 'fields: board table + CSV');
+}
+{ // Without authorisation the tab asks for it instead of failing.
+  const page = await context.newPage();
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.goto(`${BASE}/views/card-back.html`, { waitUntil: 'networkidle' });
+  await page.locator('.tabs button', { hasText: 'Fields' }).click();
+  await page.locator('#tab-body button', { hasText: 'Authorise' }).waitFor();
+  await done({ page, errors }, 'fields: asks to authorise');
+}
+
+for (const path of ['/views/fields-board.html', '/views/relationships.html', '/views/schedule.html', '/views/schedule.html?mode=temp', '/views/list-filter.html?listId=l1&listName=To%20do', '/views/settings.html', '/views/authorize.html', '/views/oauth-callback.html', '/views/crm-board.html', '/views/routines.html', '/views/bulk.html', '/views/audit.html']) {
   await visit(path, true);
 }
 

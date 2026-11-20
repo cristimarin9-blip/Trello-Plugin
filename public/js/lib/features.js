@@ -12,6 +12,7 @@ import { get, set, remove, getSettings } from './storage.js';
 export const FEATURES = [
   { id: 'priority', label: 'Priority', desc: 'Priority badge and picker', default: true },
   { id: 'company', label: 'Companies House', desc: 'Company lookup and filing-deadline badges', default: true },
+  { id: 'fields', label: 'Fields', desc: 'Custom fields tab and field badges', default: true },
   { id: 'crm', label: 'Client stages (CRM)', desc: 'Bookkeeping / accounts / VAT / PAYE tracker and badges', default: true },
   { id: 'subtasks', label: 'Subtasks & parent', desc: 'Task ↔ subtask links and progress badge', default: true },
   { id: 'checklist', label: 'Checklist sub-points', desc: 'Numbered sub-points and reordering tab', default: true },

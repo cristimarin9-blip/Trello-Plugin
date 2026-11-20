@@ -75,3 +75,23 @@ tr.clickable:hover td { background: var(--bg-soft); }
 .modal-body { padding: 4px 8px; }
 .scroll { max-height: 70vh; overflow: auto; }
 .badge-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 4px; }
+.field { margin-bottom: 10px; }
+.field > label { margin-top: 4px; }
+.segmented { display: inline-flex; flex-wrap: wrap; gap: 0; border: 1px solid var(--border); border-radius: 3px; overflow: hidden; }
+.segmented button { border-radius: 0; background: var(--bg-soft); border-right: 1px solid var(--border); padding: 5px 14px; }
+.segmented button:last-child { border-right: 0; }
+.segmented button.on { background: var(--gray); color: #fff; font-weight: 600; }
+.segmented button.on.green { background: #4b9d3d; } .segmented button.on.yellow { background: var(--yellow); color: #172b4d; }
+.segmented button.on.orange { background: var(--orange); color: #172b4d; } .segmented button.on.red { background: var(--red); }
+.segmented button.on.purple { background: var(--purple); } .segmented button.on.blue { background: var(--blue); }
+.segmented button.on.sky { background: var(--sky); color: #172b4d; } .segmented button.on.lime { background: var(--lime); color: #172b4d; }
+.segmented button.on.pink { background: var(--pink); color: #172b4d; } .segmented button.on.light-gray { background: var(--gray); color: #172b4d; }
+.notes-view { cursor: text; border: 2px solid transparent; border-radius: 3px; padding: 4px 6px; margin: 0; }
+.notes-view:hover, .notes-view:focus { border-color: var(--border); background: var(--bg-soft); outline: none; }
+.notes h4 { margin: 8px 0 2px; font-size: 13px; }
+.notes h4:first-child { margin-top: 0; }
+.notes ul { margin: 2px 0 6px; padding-left: 20px; }
+.notes p { margin: 2px 0 6px; white-space: pre-wrap; }
+th.sortable { cursor: pointer; user-select: none; }
+th.sortable:hover, th.sortable:focus { color: var(--text); outline: none; }
+.pill.swatch { width: 18px; height: 18px; padding: 0; border-radius: 50%; }

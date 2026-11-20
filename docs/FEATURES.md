@@ -78,10 +78,19 @@ Two platform facts shape most of the design:
 * **Per card:** card back → **⚙ Features** tab. Tick/untick any feature; the card is then "custom" and keeps its own full set. **Reset to board defaults** removes the override. A pill shows where a card differs from the board default.
 * **Bulk:** board button **Bulk actions** → select cards → *Turn feature ON…*, *Turn feature OFF…* or *Reset features to board defaults*. These need no REST authorisation.
 * **What a switch does:** off hides the feature's card-front badges, detail badges, card buttons and card-back tab, stops recording views (for *Who viewed*), hides the card from the Client CRM table (for *Client stages*), ignores the card's priority when sorting, and pauses scheduled actions on that card (they stay stored and resume if the feature is turned back on). Data is never deleted by a switch.
-* **Switchable features:** Priority · Companies House · Client stages (CRM) · Subtasks & parent · Checklist sub-points · Card history · Who viewed · Scheduled actions & temporary cards · Apply routines. Board-level tools (Client CRM, Bulk actions, Routines, Activity audit, list filter) are always available.
+* **Switchable features:** Priority · Companies House · Fields · Client stages (CRM) · Subtasks & parent · Checklist sub-points · Card history · Who viewed · Scheduled actions & temporary cards · Apply routines. Board-level tools (Client CRM, Fields, Bulk actions, Routines, Activity audit, list filter) are always available.
 * **Code:** `public/js/lib/features.js`, `public/js/tabs/features.js`, `public/js/views/settings.js`, `public/js/views/bulk.js`.
 
 ---
+
+## 16. Custom fields (replacement for Amazing Fields)
+* **Built:** board button **Fields** → **Manage fields** defines the board's fields: *Text*, *Notes* (several lines; `- ` lines become bullets and a short line ending in `:` or followed by bullets becomes a heading), *Number*, *Date* (deadline colour), *Choice* (buttons such as VAT / Non-VAT, each option with a colour) and *Checkbox*. Each field can be shown on cards by default and/or shown as a **card-front badge** (not notes). Reorder, rename and delete fields there; saving is refused if someone else saved the list in the meantime.
+* **Card:** card back → **Fields** tab edits the values; each change saves immediately. **Visible fields** picks which fields this card shows (*All*, *None*, *Board default* or tick individual fields). Badges follow the card's visible fields.
+* **Board table:** **Fields → Table** lists every card with its values: search (card name and values), list filter, "only cards with values", click a column to sort (empty values last), click a row to open the card, **Export CSV** (full notes, card links, protected against spreadsheet formula injection).
+* **Storage:** values are kept in the Keel worker's D1 database, not in Trello pluginData, so the 4 KB per-card limit does not apply (limits: 60 fields per board, 20,000 characters per notes field, 100 KB per card). Every request carries the user's Trello token; the worker asks Trello whether that token can open the board/card before reading or writing, and caches a successful check for 5 minutes. Two people editing different fields of the same card do not overwrite each other.
+* **Import:** **Fields → Import → Scan this board** reads other Power-Ups' data on the board and its cards through the Trello API (read-only) and lists what it finds. **Save a copy for import setup** stores that data in the D1 database so a mapping into Keel fields can be built from the real format.
+* **Limits:** fields need the person to have authorised Keel; without it the tab shows an Authorise button and no badges are drawn. Badges refresh within a minute, or straight away after a change made in Keel.
+* **Code:** `public/js/lib/fields.js`, `public/js/tabs/fields.js`, `public/js/views/fields-board.js`, `public/js/features/fields.js`, `worker/src/fields.js`, `worker/src/index.js`.
 
 ## Data stored by the Power-Up
 
@@ -93,6 +102,7 @@ Two platform facts shape most of the design:
 | card | `parent` / `children` | `{ id, name }` / `[cardId]` |
 | card | `crm` | `{ bookkeeping|accounts|vat|paye: { on, stage, period, note } }` |
 | card | `schedule` | `[{ id, at, type, listId?, listName?, value?, temp? }]` |
+| card | `fieldsRev` | time of the last Fields change (only used to refresh badges; values live in D1) |
 | card | `features` | per-card override `{ featureId: true/false }` (absent = follows board defaults) |
 | board | `settings` | `{ chProxyUrl, stageBadges, defaults: { featureId: true/false } }` |
 | board | `routines` | `[{ id, name, steps[] }]` |

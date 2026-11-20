@@ -17,6 +17,7 @@ A Trello Power-Up built for an accountancy practice. It adds, to any board you e
 | Scheduled card actions | Card button **Schedule action** (archive, move, complete, set priority at a date/time) |
 | Temporary cards | Card button **Temporary card** (auto-archive after a period) |
 | Bulk card actions | Board button **Bulk actions** |
+| Custom fields (text, notes with bullets, number, date, choice buttons, checkbox), per-card visible fields, badges, table + CSV, import scan | Card back → **Fields** tab (**Visible fields**, **Manage fields**) · board button **Fields** (Table / Manage fields / Import) · field badges on the card front |
 | Feature switches: defaults for cards, per-card and bulk on/off | Power-Up settings → **Default features for cards** · card back → **⚙ Features** tab · Bulk actions → *Turn feature ON/OFF* / *Reset to board defaults* |
 
 `docs/FEATURES.md` explains how each one works and where Trello's Power-Up platform limits what is possible (for example, Trello gives no real "viewed" or "logged in" events, and a Power-Up cannot place a search box inside a list header).
@@ -165,7 +166,8 @@ Now open a client card → **Company** tab → type the company number and click
 ## Day-to-day
 
 * **Changing the Power-Up**: edit files under `public/`, push to `main`, wait ~1 minute, hard-refresh Trello.
-* **Changing the worker**: anything under `worker/` is not deployed by GitHub; run `npx wrangler deploy` in `worker/`, or paste `worker/src/index.js` into the worker's editor in the Cloudflare dashboard and click **Deploy**.
+* **Changing the worker**: anything under `worker/` is not deployed by GitHub; run `npx wrangler deploy` in `worker/` (it has two modules, `src/index.js` and `src/fields.js`, plus the D1 binding in `wrangler.toml`, so use wrangler rather than pasting into the dashboard editor).
+* **Fields storage**: field definitions and values live in the D1 database `keel-fields` on the Cloudflare account (schema in `worker/schema.sql`). The worker only reads or writes after Trello confirms, with the user's own Keel authorisation, that they can open that board or card. Fields therefore need each person to have clicked **Authorise**.
 * **Checks before pushing**: `npm run check` parses every module and runs the date/number unit tests; `npm run smoke` loads every page in headless Chromium with a fake Trello client (needs Playwright installed locally: `npm i -D playwright && npx playwright install chromium`). The **Check** GitHub Action runs `npm run check` on every push.
 * **Testing without deploying**: Trello only loads HTTPS pages, so serve `public/` locally (`npm run serve`) and expose it with a tunnel such as `npx cloudflared tunnel --url http://localhost:8080` or ngrok, then create a second Power-Up ("Keel DEV") in the admin portal pointing at the tunnel URL.
 * **Other workspaces**: a custom Power-Up is only listed in the workspace chosen in step 3. Create another Power-Up entry per workspace (same URL), or go through Trello's public-listing review.
@@ -179,6 +181,8 @@ Now open a client card → **Company** tab → type the company number and click
 | "Authorise" popup shows an error or never closes | Callback URL in the OAuth 2.0 tab does not match `.../views/oauth-callback.html` exactly, the OAuth 2.0 settings were not saved, or `OAUTH_CLIENT_ID` is still the placeholder (step 3) |
 | Authorised on one board but not another | OAuth 2.0 tokens for Power-Ups are per workspace; authorise again on a board in the other workspace |
 | Checklist / History tab says "Authorise…" | That browser has not authorised yet — Power-Up gear → Settings → Authorise |
+| Fields tab says "Trello did not allow access" | Authorise again (Power-Up settings → Authorise); the person must be able to open the card in Trello |
+| "Someone else changed the fields since you opened this" | Another person saved the field list first: close and reopen **Fields → Manage fields**, then redo the change |
 | "Name search needs the updated proxy worker" | The worker was deployed before name search existed: redeploy `worker/src/index.js` (`npx wrangler deploy`, or paste it into the Cloudflare editor and click Deploy) |
 | Companies House lookup fails | `CH_PROXY_URL` (or the board's Proxy URL) wrong, worker not deployed, `CH_API_KEY` secret missing, or `ALLOWED_ORIGINS` does not match the Pages origin |
 | "Too much routine text" | Trello allows 4 KB of Power-Up data per board; shorten or delete routines |
@@ -195,7 +199,7 @@ public/                 the Power-Up (deployed to GitHub Pages)
   js/tabs/*.js          tabs of the card-back section
   js/views/*.js         popups and modals
   views/*.html          the pages for those popups and modals
-worker/                 Cloudflare Worker proxy for Companies House
+worker/                 Cloudflare Worker: Companies House proxy + Fields storage (D1, schema.sql)
 scripts/                check.mjs (syntax + unit tests), smoke.mjs (headless page test)
 .github/workflows/      Pages deploy + checks
 docs/FEATURES.md        feature-by-feature notes and limitations

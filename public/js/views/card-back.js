@@ -2,6 +2,7 @@ import { initIframe, fit } from '../lib/iframe.js';
 import { cardFeatures } from '../lib/features.js';
 import { el, clear, byId } from '../lib/util.js';
 import company from '../tabs/company.js';
+import fields from '../tabs/fields.js';
 import crm from '../tabs/crm.js';
 import subtasks from '../tabs/subtasks.js';
 import checklist from '../tabs/checklist.js';
@@ -10,7 +11,7 @@ import viewers from '../tabs/viewers.js';
 import features from '../tabs/features.js';
 
 // Tab ids match feature ids in lib/features.js; `always` tabs ignore the switches.
-const TABS = [company, crm, subtasks, checklist, history, viewers, features];
+const TABS = [company, fields, crm, subtasks, checklist, history, viewers, features];
 const t = initIframe();
 const app = byId('app');
 const LAST_TAB_KEY = 'practice-powerup:last-tab';

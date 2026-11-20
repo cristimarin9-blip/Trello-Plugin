@@ -68,6 +68,17 @@ assert.deepEqual(found[0], { number: '00000006', name: 'TEST LTD', status: 'acti
 assert.equal(found[1].address, '2 Road, Glasgow');
 assert.deepEqual(shapeSearch({}), []);
 assert.deepEqual(shapeSearch(null), []);
+const { formatValue, badgesFor, visibleFields, csvCell } = await import('../public/js/lib/fields.js');
+const notesField = { id: 'n', name: 'Check', type: 'notes' };
+assert.equal(formatValue(notesField, 'Debtors\n- Sales missing\n- Wages', { short: true }), 'Debtors · Sales missing · Wages');
+const vatField = { id: 'v', name: 'VAT', type: 'choice', badge: true, options: [{ id: 'y', label: 'VAT', color: 'green' }] };
+const yeField = { id: 'd', name: 'Year end', type: 'date', badge: true, shown: false };
+assert.deepEqual(visibleFields([vatField, yeField, notesField], null).map((f) => f.id), ['v', 'n'], 'board default uses "shown"');
+assert.deepEqual(visibleFields([vatField, yeField, notesField], ['d']).map((f) => f.id), ['d']);
+assert.deepEqual(badgesFor([vatField, yeField], { values: { v: 'y', d: '2000-01-01' }, visible: null }), [{ text: 'VAT', color: 'green' }], 'hidden fields give no badge');
+assert.equal(badgesFor([vatField, yeField], { values: { v: 'y', d: '2000-01-01' }, visible: ['d'] })[0].color, 'red');
+assert.equal(csvCell('=HYPERLINK("x")'), `"'=HYPERLINK(""x"")"`, 'CSV formula injection is neutralised');
+assert.equal(csvCell('a "b"'), '"a ""b"""');
 const { resolve, builtInDefaults, FEATURE_IDS } = await import('../public/js/lib/features.js');
 const d = builtInDefaults();
 assert.ok(FEATURE_IDS.every((id) => d[id] === true));

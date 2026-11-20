@@ -5,7 +5,7 @@
   "type": "module",
   "description": "Trello Power-Up for an accountancy practice: priorities, Companies House deadlines, client stages, subtasks, routines, scheduling, audit and bulk actions.",
   "scripts": {
-    "check": "node scripts/check.mjs",
+    "check": "node scripts/check.mjs && node --no-warnings scripts/worker-test.mjs",
     "serve": "python3 -m http.server 8080 --directory public",
     "smoke": "node scripts/smoke.mjs"
   }
