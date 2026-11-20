@@ -30,7 +30,7 @@ const MOCK = `
       member: async () => ({ id: 'm1', fullName: 'Ann Example', username: 'ann' }),
       arg: (k) => new URLSearchParams(location.search).get(k),
       render: (fn) => { window.__render = fn; return fn(); },
-      sizeTo: async () => {}, signUrl: (u) => u, popup: async () => {}, modal: async () => {}, closePopup: async () => {}, closeModal: async () => {},
+      sizeTo: async () => {}, signUrl: (u) => u, popup: async (o) => { window.__lastPopup = o; }, modal: async (o) => { window.__lastModal = o; }, closePopup: async () => {}, closeModal: async () => {},
       showCard: async () => {}, alert: () => {},
       getOAuth2ApiClient: () => ({ getAccessToken: async () => window.__token || null, authorize: async () => {}, redirectUriCallback: async () => {} })
     };
@@ -86,7 +86,8 @@ await visit('/index.html', false, async (page, errors) => {
     const out = {};
     for (const [name, fn] of Object.entries(window.__caps)) {
       try {
-        if (name === 'list-sorters') { const s = await fn(t); out[name] = await s[0].callback(t, { cards: await t.cards() }); }
+        if (name === 'board-buttons') { const bs = await fn(t); for (const b of bs) { window.__lastModal = null; await b.callback(t); const o = window.__lastModal || window.__lastPopup; const r = await fetch(o.url); if (r.status !== 200) throw new Error(`${b.text} opens ${o.url} (${r.status})`); } out[name] = bs.map((b) => b.text); }
+        else if (name === 'list-sorters') { const s = await fn(t); out[name] = await s[0].callback(t, { cards: await t.cards() }); }
         else if (['show-settings', 'show-authorization', 'on-enable', 'remove-data'].includes(name)) { await fn(t); out[name] = 'ok'; }
         else out[name] = await fn(t);
       } catch (e) { out[name] = `ERROR ${e.message}`; }
@@ -223,7 +224,11 @@ const done = async ({ page, errors }, label) => { errors.forEach((e) => problems
 { // Card with no fields yet offers set-up.
   const p = await fieldsPage('/views/card-back.html');
   await p.page.locator('.tabs button', { hasText: 'Fields' }).click();
-  await p.page.locator('#tab-body button', { hasText: 'Set up fields' }).waitFor();
+  await p.page.locator('#tab-body button', { hasText: 'Set up fields' }).click();
+  // The modal must point at a page that exists when opened from inside the card (views/) iframe.
+  const opened = await p.page.evaluate(async () => { const o = window.__lastModal; const r = await fetch(o.url); return { url: o.url, status: r.status, tab: o.args && o.args.tab }; });
+  if (opened.status !== 200 || !opened.url.endsWith('/views/fields-board.html') || opened.tab !== 'manage') p.errors.push(`Set up fields opens a broken page: ${JSON.stringify(opened)}`);
+  console.log('  set-up opens:', opened.url.replace(BASE, ''), opened.status);
   await done(p, 'fields: empty board offers set-up');
 }
 { // Define fields in the board modal.

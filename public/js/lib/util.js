@@ -2,6 +2,14 @@
 
 const DAY = 24 * 60 * 60 * 1000;
 
+/**
+ * Absolute URL of a page in public/views/. Use this for t.popup / t.modal: a relative
+ * './views/x.html' only works from the connector (index.html), not from inside a view.
+ */
+export function viewUrl(name) {
+  return new URL(`../../views/${name}`, import.meta.url).href;
+}
+
 export function uid() {
   return Math.random().toString(36).slice(2, 10);
 }

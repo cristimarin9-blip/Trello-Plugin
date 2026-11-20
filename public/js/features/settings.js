@@ -2,9 +2,10 @@
 import { isAuthorized } from '../lib/trello-api.js';
 import { KEYS } from '../config.js';
 import { remove } from '../lib/storage.js';
+import { viewUrl } from '../lib/util.js';
 
 export function showSettings(t) {
-  return t.popup({ title: 'Keel settings', url: './views/settings.html', height: 420 });
+  return t.popup({ title: 'Keel settings', url: viewUrl('settings.html'), height: 420 });
 }
 
 export async function authorizationStatus(t) {
@@ -12,7 +13,7 @@ export async function authorizationStatus(t) {
 }
 
 export function showAuthorization(t) {
-  return t.popup({ title: 'Authorise Trello access', url: './views/authorize.html', height: 180 });
+  return t.popup({ title: 'Authorise Trello access', url: viewUrl('authorize.html'), height: 180 });
 }
 
 export async function removeData(t) {

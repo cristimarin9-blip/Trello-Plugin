@@ -1,4 +1,5 @@
 // Feature: processes & routines — named step lists applied to a card as a checklist.
+import { viewUrl } from '../lib/util.js';
 import { KEYS } from '../config.js';
 import { get } from '../lib/storage.js';
 import { checklists as checklistsApi } from '../lib/trello-api.js';
@@ -8,7 +9,7 @@ export function boardButtons(icon) {
     icon,
     text: 'Routines',
     condition: 'always',
-    callback: (t) => t.modal({ title: 'Processes & routines', url: './views/routines.html', height: 560 })
+    callback: (t) => t.modal({ title: 'Processes & routines', url: viewUrl('routines.html'), height: 560 })
   }];
 }
 

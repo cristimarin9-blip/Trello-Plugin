@@ -11,7 +11,7 @@ import { KEYS } from '../config.js';
 import { get, set } from '../lib/storage.js';
 import { isAuthorized, cards as cardsApi } from '../lib/trello-api.js';
 import { boardDefaults, cardFeatures } from '../lib/features.js';
-import { daysUntil, formatDateTime, truncate } from '../lib/util.js';
+import { daysUntil, formatDateTime, truncate, viewUrl } from '../lib/util.js';
 
 const RUN_GAP_MS = 60 * 1000;
 let lastRun = 0;
@@ -45,12 +45,12 @@ export function cardButtons(iconUrl, enabled) {
     {
       icon: iconUrl,
       text: 'Schedule action',
-      callback: (t) => t.popup({ title: 'Scheduled actions', url: './views/schedule.html', height: 320 })
+      callback: (t) => t.popup({ title: 'Scheduled actions', url: viewUrl('schedule.html'), height: 320 })
     },
     {
       icon: iconUrl,
       text: 'Temporary card',
-      callback: (t) => t.popup({ title: 'Temporary card', url: './views/schedule.html', args: { mode: 'temp' }, height: 260 })
+      callback: (t) => t.popup({ title: 'Temporary card', url: viewUrl('schedule.html'), args: { mode: 'temp' }, height: 260 })
     }
   ];
 }
