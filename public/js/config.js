@@ -8,7 +8,7 @@ export const APP_NAME = 'Keel';
 
 // OAuth 2.0 "Client ID" from the OAuth 2.0 tab (security type: Public).
 // It is a public identifier, safe to commit. There is no secret for public clients.
-export const OAUTH_CLIENT_ID = 'JpcsjyDUsQcVWemdSDgoJZAZqv9YQHK';
+export const OAUTH_CLIENT_ID = 'zjR05r6U2sbVC9zfUNLdaxfW6akrA75W';
 
 // Page Trello redirects to after the user clicks "Allow". It is served from this
 // repo and must be listed, character for character, under "Callback URL(s)" in
