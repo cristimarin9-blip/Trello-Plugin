@@ -1,12 +1,12 @@
 // "Table view": every card with its field values. Search, Filter, Sort, Columns,
 // Group by, Show N, saved views, inline editing and export to a spreadsheet (CSV).
-import { api, isLayout, isEmpty, formatValue, optionOf, csvCell, markCardChanged, newId } from '../lib/fields.js';
+import { api, isLayout, isComputed, isEmpty, formatValue, sortValue, optionOf, csvCell, markCardChanged, newId, valuesWithComputed, emptyContext } from '../lib/fields.js';
 import { editorFor, valueView, typeIcon } from '../lib/field-ui.js';
 import { clear, el, setStatus, truncate } from '../lib/util.js';
 
 const BUILTIN = { __name: 'Name', __list: 'List', __members: 'Members' };
 const LIMITS = [50, 100, 250, 500, 1000];
-const INLINE = ['choice', 'checkbox', 'rating', 'multi']; // edited directly in the cell
+const INLINE = ['choice', 'checkbox', 'rating', 'multi', 'progress']; // edited directly in the cell
 
 const OPS = {
   text: [['contains', 'contains'], ['is', 'is'], ['empty', 'is empty'], ['notempty', 'is not empty']],
@@ -14,11 +14,14 @@ const OPS = {
   multi: [['contains', 'includes'], ['empty', 'is empty'], ['notempty', 'is not empty']],
   checkbox: [['is', 'is']],
   number: [['gt', '>'], ['lt', '<'], ['is', '='], ['empty', 'is empty'], ['notempty', 'is not empty']],
+  member: [['contains', 'includes'], ['empty', 'is empty'], ['notempty', 'is not empty']],
+  checklist: [['gt', '% done >'], ['lt', '% done <'], ['empty', 'has no checklist'], ['notempty', 'has a checklist']],
   date: [['before', 'before'], ['after', 'after'], ['is', 'on'], ['empty', 'is empty'], ['notempty', 'is not empty']],
   list: [['is', 'is'], ['not', 'is not']]
 };
 const opsFor = (f) => (!f ? OPS.list : f.type === 'choice' ? OPS.choice : f.type === 'multi' ? OPS.multi : f.type === 'checkbox' ? OPS.checkbox
-  : ['number', 'rating', 'progress'].includes(f.type) ? OPS.number : f.type === 'date' ? OPS.date : OPS.text);
+  : f.type === 'member' ? OPS.member : f.type === 'checklist' ? OPS.checklist
+  : ['number', 'rating', 'progress', 'duration'].includes(f.type) ? OPS.number : ['date', 'carddate'].includes(f.type) ? OPS.date : OPS.text);
 
 // Current table settings; kept while the modal is open.
 const st = { viewId: null, search: '', filters: [], sort: null, columns: null, groupBy: '', limit: 250, panel: null, collapsed: new Set() };
@@ -41,7 +44,9 @@ export async function drawTable(root, ctx) {
   if (st.viewId && !views.some((v) => v.id === st.viewId)) st.viewId = null;
   if (!st.viewId && views.length && !st.touched) load(views[0]);
 
-  const rows = ctx.trello.cards.map((c) => ({ card: c, list: listName.get(c.idList) || '', values: (ctx.board.cards[c.id] && ctx.board.cards[c.id].values) || {} }));
+  const fctx = ctx.fieldCtx || emptyContext();
+  const withComputed = (cardId, stored) => valuesWithComputed(fields, stored, cardId, fctx);
+  const rows = ctx.trello.cards.map((c) => ({ card: c, list: listName.get(c.idList) || '', values: withComputed(c.id, (ctx.board.cards[c.id] && ctx.board.cards[c.id].values) || {}) }));
 
   function load(v) {
     Object.assign(st, { viewId: v.id, search: v.search || '', filters: JSON.parse(JSON.stringify(v.filters || [])), sort: v.sort, columns: v.columns, groupBy: v.groupBy || '', limit: v.limit || 250 });
@@ -117,8 +122,9 @@ export async function drawTable(root, ctx) {
     if (['empty', 'notempty'].includes(filter.op)) return el('span');
     if (!f) return el('select', { onchange: (e) => set(e.target.value) }, lists.map((l) => el('option', { value: l.id, selected: l.id === filter.value }, l.name)));
     if (f.type === 'choice' || f.type === 'multi') return el('select', { onchange: (e) => set(e.target.value) }, el('option', { value: '' }, '—'), f.options.map((o) => el('option', { value: o.id, selected: o.id === filter.value }, o.label)));
-    if (f.type === 'checkbox') return el('select', { onchange: (e) => set(e.target.value === 'true') }, el('option', { value: 'true', selected: filter.value === true }, 'ticked'), el('option', { value: 'false', selected: filter.value === false }, 'not ticked'));
-    const type = f.type === 'date' ? 'date' : ['number', 'rating', 'progress'].includes(f.type) ? 'number' : 'text';
+    if (f.type === 'checkbox') return el('select', { onchange: (e) => set(e.target.value === 'true') }, el('option', { value: 'true', selected: filter.value === true }, 'on'), el('option', { value: 'false', selected: filter.value === false }, 'off'));
+    if (f.type === 'member') return el('select', { onchange: (e) => set(e.target.value) }, el('option', { value: '' }, '—'), (fctx.members || []).map((m) => el('option', { value: m.id, selected: m.id === filter.value }, m.fullName || m.username)));
+    const type = ['date', 'carddate'].includes(f.type) ? 'date' : ['number', 'rating', 'progress', 'checklist'].includes(f.type) ? 'number' : 'text';
     const inp = el('input', { type, value: filter.value ?? '', placeholder: 'value', oninput: () => set(type === 'number' && inp.value !== '' ? Number(inp.value) : inp.value) });
     return inp;
   }
@@ -161,11 +167,11 @@ export async function drawTable(root, ctx) {
         el('button', { class: 'small', onclick: () => { st.columns = null; st.touched = true; drawPanel(); drawRows(); drawToolbar(); drawViewTabs(); } }, 'All'),
         el('button', { class: 'small', onclick: () => { st.columns = []; st.touched = true; drawPanel(); drawRows(); drawToolbar(); drawViewTabs(); } }, 'None'))), grid);
     } else if (st.panel === 'group') {
-      const groupable = fields.filter((f) => f.type === 'choice' || f.type === 'checkbox');
+      const groupable = fields.filter((f) => ['choice', 'checkbox', 'member'].includes(f.type));
       const sel = el('select', { onchange: () => { st.groupBy = sel.value; st.collapsed.clear(); st.touched = true; drawRows(); drawToolbar(); drawViewTabs(); } },
         el('option', { value: '' }, 'No grouping'), el('option', { value: '__list', selected: st.groupBy === '__list' }, 'List'),
         groupable.map((f) => el('option', { value: f.id, selected: st.groupBy === f.id }, f.name)));
-      panel.append(el('div', { class: 'row nowrap prow' }, el('small', { class: 'muted' }, 'Group by'), sel), el('small', { class: 'muted' }, 'Lists, choice fields and checkboxes can be grouped.'));
+      panel.append(el('div', { class: 'row nowrap prow' }, el('small', { class: 'muted' }, 'Group by'), sel), el('small', { class: 'muted' }, 'Lists, choice fields, toggles and member fields can be grouped (cards with several members go under the first).'));
     }
   }
 
@@ -183,26 +189,39 @@ export async function drawTable(root, ctx) {
       case 'is':
         if (f.type === 'checkbox') return !!v === (val !== false && val !== 'false');
         if (val === '' || val === undefined) return true;
-        if (['number', 'rating', 'progress'].includes(f.type)) return !empty && Number(v) === Number(val);
-        if (f.type === 'choice' || f.type === 'date') return v === val;
-        return formatValue(f, v).toLowerCase() === String(val).toLowerCase();
+        if (['number', 'rating', 'progress', 'duration'].includes(f.type)) return !empty && Number(v) === Number(val);
+        if (f.type === 'date' || f.type === 'carddate') return !empty && day(v, f) === val;
+        if (f.type === 'choice') return v === val;
+        return formatValue(f, v, { ctx: fctx }).toLowerCase() === String(val).toLowerCase();
       case 'not': return val === '' ? true : v !== val;
       case 'contains':
         if (val === '' || val === undefined) return true;
-        if (f.type === 'multi') return Array.isArray(v) && v.includes(val);
-        return formatValue(f, v).toLowerCase().includes(String(val).toLowerCase());
-      case 'gt': return val === '' || (!empty && Number(v) > Number(val));
-      case 'lt': return val === '' || (!empty && Number(v) < Number(val));
-      case 'before': return !val || (!empty && v < val);
-      case 'after': return !val || (!empty && v > val);
+        if (f.type === 'multi' || f.type === 'member' || f.type === 'cardref') return Array.isArray(v) && (v.includes(val) || (f.type === 'cardref' && formatValue(f, v, { ctx: fctx }).toLowerCase().includes(String(val).toLowerCase())));
+        return formatValue(f, v, { ctx: fctx }).toLowerCase().includes(String(val).toLowerCase());
+      case 'gt':
+      case 'lt': {
+        if (val === '' || empty) return val === '';
+        const n = f.type === 'checklist' ? (v.total ? (v.done / v.total) * 100 : 0) : Number(v);
+        return flt.op === 'gt' ? n > Number(val) : n < Number(val);
+      }
+      case 'before': return !val || (!empty && day(v, f) < val);
+      case 'after': return !val || (!empty && day(v, f) > val);
       default: return true;
     }
+  }
+
+  // 'YYYY-MM-DD' (local) of a date / date-time / card-date value, for date filters.
+  function day(v, f) {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(String(v))) return v;
+    const d = new Date(v);
+    if (f && Number.isNaN(d.getTime())) return String(v);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   }
 
   function filtered() {
     const q = st.search.trim().toLowerCase();
     let out = rows.filter((r) => st.filters.every((f) => matches(r, f))
-      && (!q || r.card.name.toLowerCase().includes(q) || r.list.toLowerCase().includes(q) || fields.some((f) => formatValue(f, r.values[f.id]).toLowerCase().includes(q))));
+      && (!q || r.card.name.toLowerCase().includes(q) || r.list.toLowerCase().includes(q) || fields.some((f) => formatValue(f, r.values[f.id], { ctx: fctx }).toLowerCase().includes(q))));
     if (st.sort) {
       const { field: key, dir } = st.sort;
       const f = byId.get(key);
@@ -211,9 +230,8 @@ export async function drawTable(root, ctx) {
         if (key === '__list') return listIndex.get(r.card.idList) ?? 999;
         const v = r.values[key];
         if (!f || isEmpty(v)) return null;
-        if (['number', 'rating', 'progress', 'date'].includes(f.type)) return v;
-        if (f.type === 'choice') return f.options.findIndex((o) => o.id === v);
-        return formatValue(f, v).toLowerCase();
+        const n = sortValue(f, v);
+        return n !== null ? n : formatValue(f, v, { ctx: fctx }).toLowerCase();
       };
       out = [...out].sort((a, b) => {
         const x = val(a); const y = val(b);
@@ -231,7 +249,11 @@ export async function drawTable(root, ctx) {
     if (st.groupBy === '__list') return lists.map((l) => ({ key: l.id, label: l.name, rows: list.filter((r) => r.card.idList === l.id) })).filter((g) => g.rows.length);
     const f = byId.get(st.groupBy);
     if (!f) return [{ key: 'all', label: 'All Cards', rows: list }];
-    if (f.type === 'checkbox') return [{ key: 'yes', label: `${f.name}: ticked`, rows: list.filter((r) => r.values[f.id]) }, { key: 'no', label: `${f.name}: not ticked`, rows: list.filter((r) => !r.values[f.id]) }].filter((g) => g.rows.length);
+    if (f.type === 'checkbox') return [{ key: 'yes', label: `${f.name}: on`, rows: list.filter((r) => r.values[f.id]) }, { key: 'no', label: `${f.name}: off`, rows: list.filter((r) => !r.values[f.id]) }].filter((g) => g.rows.length);
+    if (f.type === 'member') {
+      return [...(fctx.members || []).map((m) => ({ key: m.id, label: m.fullName || m.username, rows: list.filter((r) => Array.isArray(r.values[f.id]) && r.values[f.id][0] === m.id) })),
+        { key: '__none', label: `No ${f.name}`, rows: list.filter((r) => isEmpty(r.values[f.id])) }].filter((g) => g.rows.length);
+    }
     return [...f.options.map((o) => ({ key: o.id, label: o.label, color: o.color, rows: list.filter((r) => r.values[f.id] === o.id) })),
       { key: '__none', label: `No ${f.name}`, rows: list.filter((r) => !optionOf(f, r.values[f.id])) }].filter((g) => g.rows.length);
   }
@@ -244,8 +266,8 @@ export async function drawTable(root, ctx) {
   async function commitCell(row, f, value) {
     try {
       const res = await api.patchCard(t, row.card.id, { values: { [f.id]: value } });
-      row.values = res.values || {};
-      ctx.board.cards[row.card.id] = { values: row.values, visible: res.visible };
+      ctx.board.cards[row.card.id] = { values: res.values || {}, visible: res.visible };
+      row.values = withComputed(row.card.id, res.values || {});
       ctx.selfWriteAt = Date.now();
       if (f.badge || f.required) markCardChanged(t, row.card.id);
       setStatus(`Saved ${f.name} on ${truncate(row.card.name, 30)}`, 'success');
@@ -261,18 +283,24 @@ export async function drawTable(root, ctx) {
     if (id === '__members') return el('td', {}, (row.card.members || []).map((m) => el('span', { class: 'avatar', title: m.fullName || m.username }, (m.fullName || m.username || '?').split(/\s+/).map((p) => p[0]).join('').slice(0, 2).toUpperCase())));
     const f = byId.get(id);
     const td = el('td', { class: `fcol t-${f.type}${f.required && isEmpty(row.values[f.id]) && f.type !== 'checkbox' ? ' missing' : ''}` });
-    if (INLINE.includes(f.type) && !(f.type === 'choice' && f.display === 'dropdown')) {
-      td.append(editorFor(f, row.values[f.id], (v) => commitCell(row, f, v), { compact: true }));
+    const opts = { compact: true, ctx: fctx, cardId: row.card.id, showCard: (cid) => t.showCard(cid) };
+    if (isComputed(f)) {
+      td.classList.add('computed');
+      td.append(valueView(f, row.values[f.id], { ctx: fctx }));
       return td;
     }
-    const showView = () => { clear(td); td.append(valueView(f, row.values[f.id])); };
+    if (INLINE.includes(f.type) && !(f.type === 'choice' && f.display === 'dropdown')) {
+      td.append(editorFor(f, row.values[f.id], (v) => commitCell(row, f, v), opts));
+      return td;
+    }
+    const showView = () => { clear(td); td.append(valueView(f, row.values[f.id], { ctx: fctx })); };
     td.tabIndex = 0;
     td.title = 'Click to edit';
     const edit = () => {
       if (td.classList.contains('editing')) return;
       td.classList.add('editing');
       clear(td);
-      const ed = editorFor(f, row.values[f.id], (v) => commitCell(row, f, v), { compact: true });
+      const ed = editorFor(f, row.values[f.id], (v) => commitCell(row, f, v), opts);
       td.append(ed);
       const focusable = td.querySelector('input:not([type=checkbox]), select, textarea, .notes-view');
       if (focusable && focusable.classList.contains('notes-view')) focusable.click();
@@ -331,7 +359,7 @@ export async function drawTable(root, ctx) {
         if (id === '__name') return r.card.name;
         if (id === '__list') return r.list;
         if (id === '__members') return (r.card.members || []).map((m) => m.fullName || m.username).join(', ');
-        return formatValue(byId.get(id), r.values[id]);
+        return formatValue(byId.get(id), r.values[id], { ctx: fctx });
       }), r.card.url || ''].map(csvCell).join(','));
     }
     const name = (current() ? current().name : 'fields').replace(/[^\w-]+/g, '-').toLowerCase();

@@ -1,6 +1,6 @@
 // Board modal for Fields: Table view, Add/edit fields, and Import.
 import { initIframe } from '../lib/iframe.js';
-import { api, NeedsAuthError } from '../lib/fields.js';
+import { api, NeedsAuthError, loadContext } from '../lib/fields.js';
 import { authorize } from '../lib/trello-api.js';
 import { byId, clear, el, setStatus } from '../lib/util.js';
 import { drawManage } from './fields-manage.js';
@@ -49,10 +49,11 @@ async function render() {
   try {
     if (!ctx.boardId) ctx.boardId = (await t.board('id')).id;
     if (!ctx.trello) {
-      const [cards, lists] = await Promise.all([t.cards('id', 'name', 'idList', 'url', 'members', 'closed'), t.lists('id', 'name')]);
+      const [cards, lists] = await Promise.all([t.cards('id', 'name', 'idList', 'url', 'members', 'closed', 'idShort', 'dateLastActivity', 'due', 'badges'), t.lists('id', 'name')]);
       ctx.trello = { cards: cards.filter((c) => !c.closed), lists };
     }
     if (!ctx.board) await ctx.reload();
+    ctx.fieldCtx = await loadContext(t, ctx.board.fields || [], { boardId: ctx.boardId, cards: ctx.trello.cards });
     if (active === 'table') await drawTable(body, ctx);
     else if (active === 'manage') drawManage(body, ctx);
     else drawImport(body, ctx);

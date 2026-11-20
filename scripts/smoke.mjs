@@ -13,8 +13,8 @@ const MOCK = `
   const data = {};
   const bucket = (scope) => (data[scope] ||= { shared: {} }).shared;
   const cardsList = [
-    { id: 'c1', name: 'Acme Ltd — year end', idList: 'l1', dueComplete: false, labels: [{ id: 'lb1', name: 'VAT', color: 'green' }], members: [], due: '2026-12-01T17:00:00.000Z' },
-    { id: 'c2', name: 'Beta Ltd — bookkeeping', idList: 'l2', dueComplete: true, labels: [], members: [] }
+    { id: 'c1', name: 'Acme Ltd — year end', idList: 'l1', idShort: 7, dueComplete: false, labels: [{ id: 'lb1', name: 'VAT', color: 'green' }], members: [], due: '2026-12-01T17:00:00.000Z', dateLastActivity: '2026-11-20T10:00:00.000Z', badges: { checkItems: 4, checkItemsChecked: 3 } },
+    { id: 'c2', name: 'Beta Ltd — bookkeeping', idList: 'l2', idShort: 8, dueComplete: true, labels: [], members: [], dateLastActivity: '2026-11-19T10:00:00.000Z', badges: { checkItems: 0, checkItemsChecked: 0 } }
   ];
   function makeT() {
     return {
@@ -22,7 +22,7 @@ const MOCK = `
       set: async (scope, vis, key, val) => { bucket(scope)[key] = val; },
       remove: async (scope, vis, key) => { delete bucket(scope)[key]; },
       getAll: async () => data,
-      card: async () => ({ id: 'c1', name: 'Acme Ltd — year end', idList: 'l1', dueComplete: false }),
+      card: async () => ({ ...cardsList[0] }),
       cards: async () => cardsList,
       lists: async () => [{ id: 'l1', name: 'To do' }, { id: 'l2', name: 'Done' }],
       list: async () => ({ id: 'l1', name: 'To do' }),
@@ -246,12 +246,12 @@ const fieldNames = () => (store.boards.b1 ? store.boards.b1.fields : []).map((f)
   await addFromGallery('Company number');
   await addFromGallery('Year end');
   await page.locator('.kv-row', { hasText: 'Editor width' }).locator('select').selectOption('third');
-  await addFromGallery('Section tab');
+  await addFromGallery('Section Tab');
   await page.locator('input.fname').fill('Accounts Schedules Things to Check');
   await addFromGallery('Things to check');
   await page.locator('input.fname').fill('Debtors');
   await page.locator('.check-row', { hasText: 'Required' }).locator('input').check();
-  await addFromGallery('Rating');
+  await addFromGallery('Rating Field');
   await page.locator('button[aria-label="Move up"]').click();
   // Options editing on VAT.
   await page.locator('.fm-list li', { hasText: 'VAT Status' }).click();
@@ -268,7 +268,7 @@ const fieldNames = () => (store.boards.b1 ? store.boards.b1.fields : []).map((f)
   if (!saved['Year end'] || saved['Year end'].width !== 'third' || !saved.Debtors || !saved.Debtors.required || saved['Accounts Schedules Things to Check'].type !== 'section' || !saved['VAT Status'].badgeName) p.errors.push(`field options not saved: ${JSON.stringify(saved).slice(0, 300)}`);
   if (!/Fields saved/.test(await page.locator('#status').textContent())) p.errors.push('no saved message');
   // An empty name is refused.
-  await addFromGallery('Text');
+  await addFromGallery('Text Field');
   await page.locator('input.fname').fill('');
   await page.locator('.savebar button', { hasText: 'Save fields' }).click();
   if (!/needs a name/.test(await page.locator('#status').textContent())) p.errors.push('empty field name was not refused');
@@ -403,6 +403,116 @@ const F = () => Object.fromEntries(store.boards.b1.fields.map((f) => [f.name, f]
   console.log('  table rows:', 2, '· groups:', groups.length, '· csv bytes:', csv.length);
   await done(p, 'fields: table view');
 }
+{ // Every field type from the gallery works on a card, in the table and in the export.
+  await context.route('https://api.trello.com/1/boards/*/checklists**', (route) => route.fulfill({ status: 200, contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' },
+    body: JSON.stringify([{ idCard: 'c1', name: 'Year end', checkItems: [{ state: 'complete' }, { state: 'incomplete' }] }, { idCard: 'c1', name: 'VAT return', checkItems: [{ state: 'complete' }, { state: 'complete' }] }]) }));
+  const setup = await fieldsPage('/views/card-back.html');
+  const catalogue = await setup.page.evaluate(async () => {
+    const m = await import('/js/lib/fields.js');
+    return m.TEMPLATES.map((tpl) => ({ group: tpl.group, name: tpl.name, field: m.fromTemplate(tpl) }));
+  });
+  await setup.page.close();
+  // One checklist field filtered by name, to exercise the Trello checklist lookup.
+  catalogue.find((c) => c.field.type === 'checklist').field.checklist = 'VAT';
+  store.boards.b1 = { fields: catalogue.map((c) => c.field), updatedAt: Date.now() };
+  store.cards = {};
+  store.views = [];
+  const p = await fieldsPage('/views/card-back.html');
+  const { page } = p;
+  await page.locator('.tabs button', { hasText: 'Fields' }).click();
+  await page.locator('.fcell').first().waitFor();
+  const valueFields = catalogue.filter((c) => !['section', 'header'].includes(c.field.type));
+  const cells = await page.locator('.fcell').count();
+  if (cells !== valueFields.length) p.errors.push(`expected ${valueFields.length} fields on the card, got ${cells}`);
+  const failures = [];
+  const stored = (id) => (store.cards.c1 ? store.cards.c1.values[id] : undefined);
+  const settle = () => page.waitForTimeout(60);
+  for (const { group, name, field: f } of valueFields) {
+    const cell = page.locator(`.fcell[data-field="${f.id}"]`);
+    const label = `${group} / ${name}`;
+    try {
+      let expect;
+      switch (f.type) {
+        case 'checkbox': await cell.locator('button.toggle').click(); expect = true; break;
+        case 'rating': await cell.locator(`button[aria-label="3 of ${f.max || 5}"]`).click(); expect = 3; break;
+        case 'progress': await cell.locator('input[type=range]').fill('40'); await cell.locator('input[type=range]').dispatchEvent('change'); expect = 40; break;
+        case 'number': await cell.locator('input[type=number]').fill('12.5'); await cell.locator('input[type=number]').dispatchEvent('change'); expect = 12.5; break;
+        case 'duration': await cell.locator('input').fill('1h 30m'); await cell.locator('input').dispatchEvent('change'); expect = 90; break;
+        case 'member': await cell.locator('button.chip').first().click(); expect = ['m1']; break;
+        case 'cardref': await cell.locator('input[type=search]').fill('beta'); await cell.locator('button.result').first().click(); expect = ['c2']; break;
+        case 'choice':
+          if (f.display === 'dropdown') await cell.locator('select').selectOption(f.options[1].id);
+          else await cell.locator('.segmented button').nth(1).click();
+          expect = f.options[1].id; break;
+        case 'multi': await cell.locator('button.chip').nth(0).click(); await settle(); await cell.locator('button.chip').nth(1).click(); expect = [f.options[0].id, f.options[1].id]; break;
+        case 'text': await cell.locator('input').fill('Hello'); await cell.locator('input').dispatchEvent('change'); expect = 'Hello'; break;
+        case 'url': await cell.locator('input').fill('https://example.com/a'); await cell.locator('input').dispatchEvent('change'); expect = 'https://example.com/a'; break;
+        case 'email': await cell.locator('input').fill('a@b.co'); await cell.locator('input').dispatchEvent('change'); expect = 'a@b.co'; break;
+        case 'phone': await cell.locator('input').fill('020 7946 0000'); await cell.locator('input').dispatchEvent('change'); expect = '020 7946 0000'; break;
+        case 'notes': await cell.locator('.notes-view').click(); await cell.locator('textarea').fill('Debtors:\n- one'); await cell.locator('button', { hasText: 'Save' }).click(); expect = 'Debtors:\n- one'; break;
+        case 'date': {
+          const inp = cell.locator('input');
+          const type = await inp.getAttribute('type');
+          const inputs = { time: ['10:15', '10:15'], 'datetime-local': ['2026-12-01T10:15', 'iso'], month: ['2026-12', '2026-12-01'], number: ['2027', '2027-01-01'], date: ['2026-12-01', '2026-12-01'] };
+          const [raw, want] = inputs[type];
+          await inp.fill(raw); await inp.dispatchEvent('change');
+          expect = want;
+          break;
+        }
+        case 'checklist': { const t = await cell.textContent(); if (!/2\/2/.test(t)) failures.push(`${label}: shows "${t}" (expected VAT checklist 2/2)`); continue; }
+        case 'cardid': { const t = await cell.textContent(); if (!t.includes('7')) failures.push(`${label}: shows "${t}"`); continue; }
+        case 'carddate': { const t = await cell.textContent(); if (!/20|19|2026|2020|1970/.test(t)) failures.push(`${label}: shows "${t}"`); continue; }
+        default: failures.push(`${label}: no test for type ${f.type}`); continue;
+      }
+      await settle();
+      const got = stored(f.id);
+      const ok = expect === 'iso' ? typeof got === 'string' && /^2026-12-01T\d\d:15:00\.000Z$/.test(got) : JSON.stringify(got) === JSON.stringify(expect);
+      if (!ok) failures.push(`${label}: stored ${JSON.stringify(got)}, expected ${JSON.stringify(expect)}`);
+      // The value shows back on the card.
+      const shown = await cell.textContent();
+      if (f.type === 'rating' && !shown.length) failures.push(`${label}: nothing shown`);
+    } catch (err) {
+      failures.push(`${label}: ${err.message.split('\n')[0]}`);
+    }
+  }
+  failures.forEach((x) => p.errors.push(x));
+  await shot(page, 'fields-all-card');
+  console.log(`  every field type: ${valueFields.length - failures.length}/${valueFields.length} work on the card`);
+  await done(p, 'fields: every gallery type on a card');
+
+  const tp = await fieldsPage('/views/fields-board.html');
+  await tp.page.locator('.ftable tbody tr:not(.group-row)').first().waitFor();
+  const heads = await tp.page.locator('.ftable thead th').count();
+  if (heads !== valueFields.length + 3) tp.errors.push(`expected ${valueFields.length + 3} columns, got ${heads}`);
+  const acme = tp.page.locator('.ftable tbody tr', { hasText: 'Acme' });
+  for (const want of ['#7', '1h 30m', '01:30', '12.5', '£12.50', '1,250%', '1.25E1', '12.5%', 'Ann Example', 'Beta Ltd', '2/2']) {
+    if (!(await acme.textContent()).includes(want)) tp.errors.push(`table row is missing "${want}"`);
+  }
+  const [download] = await Promise.all([tp.page.waitForEvent('download'), tp.page.locator('.tb', { hasText: 'Export to spreadsheet' }).click()]);
+  const csv = await (await import('node:fs/promises')).readFile(await download.path(), 'utf8');
+  const header = csv.split('\r\n')[0].split('","').length;
+  if (header !== valueFields.length + 4) tp.errors.push(`CSV has ${header} columns, expected ${valueFields.length + 4}`);
+  for (const want of ['Ann Example', 'Beta Ltd — bookkeeping', '01:30', '#7', '2/2']) if (!csv.includes(want)) tp.errors.push(`CSV is missing "${want}"`);
+  // Sort by a date-time column and a duration column without errors.
+  await tp.page.locator('th', { hasText: 'DateTime 24h Huge' }).click();
+  await tp.page.locator('th', { hasText: /^⏱Duration/ }).first().click();
+  await shot(tp.page, 'fields-all-table');
+  await done(tp, 'fields: every gallery type in the table + CSV');
+
+  const gp = await fieldsPage('/views/fields-board.html?tab=manage');
+  await gp.page.locator('.fm-side-head button', { hasText: '+ Add' }).click();
+  const cards = await gp.page.locator('.gcard').count();
+  if (cards !== catalogue.length) gp.errors.push(`gallery shows ${cards} types, expected ${catalogue.length}`);
+  const chips = (await gp.page.locator('.filter-chips button').allTextContents()).join(' ');
+  for (const want of ['Basic10', 'Examples16', 'Advanced3', 'Progress Bars13', 'Ratings19', 'Toggles14', 'Numbers8', 'Dates29']) if (!chips.includes(want)) gp.errors.push(`gallery group missing: ${want} (${chips})`);
+  await shot(gp.page, 'fields-all-gallery');
+  // Every type's editor options open without errors.
+  const items = await gp.page.locator('.fm-list li').count();
+  for (let i = 0; i < items; i += 1) await gp.page.locator('.fm-list li').nth(i).click();
+  console.log(`  gallery: ${cards} types · editor opened for ${items} fields`);
+  await done(gp, 'fields: gallery + editor for every type');
+}
+
 { // Without authorisation the tab asks for it instead of failing.
   const page = await context.newPage();
   const errors = [];

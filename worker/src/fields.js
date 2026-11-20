@@ -3,16 +3,31 @@
 
 // Value types, plus two layout types that hold no value: "section" (starts a tab that
 // groups the fields after it) and "header" (a heading between fields).
-export const FIELD_TYPES = ['text', 'notes', 'number', 'date', 'choice', 'multi', 'checkbox', 'rating', 'progress', 'url', 'email', 'phone', 'section', 'header'];
+export const FIELD_TYPES = ['text', 'notes', 'number', 'date', 'choice', 'multi', 'checkbox', 'rating', 'progress', 'url', 'email', 'phone',
+  'duration', 'member', 'cardref', 'checklist', 'cardid', 'carddate', 'section', 'header'];
 export const LAYOUT_TYPES = ['section', 'header'];
+// Worked out from the card itself (checklists, card number, dates), so they hold no stored value.
+export const COMPUTED_TYPES = ['checklist', 'cardid', 'carddate'];
+// Style and format ids; the labels live in public/js/lib/field-styles.js.
+export const PROGRESS_STYLES = ['bar', 'smooth', 'blockLow', 'brailleSmooth', 'brailleBlock', 'circles', 'squares', 'blockShade', 'emojiSquares', 'parallelogram', 'roundedRect', 'tallBar', 'largeDots', 'emojiDots', 'custom'];
+export const RATING_STYLES = ['classicStars', 'outlinedStars', 'pinwheelStars', 'fourPointStars', 'circles', 'largeCircles', 'bullseye', 'squares', 'diamonds', 'hexagons', 'hearts', 'goldStars', 'redHearts', 'redCircles', 'greenCircles', 'blueSquares', 'moons', 'batteries', 'target'];
+export const TOGGLE_STYLES = ['checkbox', 'circleCheck', 'radioDot', 'checkOnly', 'circleCheckOnly', 'squareCheckOnly', 'toggleSwitch', 'star', 'thumbs', 'lock', 'arrow', 'circleArrow', 'squareCaret', 'checkX', 'like'];
+export const NUMBER_FORMAT_IDS = ['standard', 'nogroup', 'scientific', 'engineering', 'currency', 'accounting', 'percent01', 'percent100', 'plain', 'gbp', 'eur', 'usd', 'percent'];
+export const DATE_FORMAT_KINDS = {
+  dateShort: 'date', dateExtraShort: 'date', dateMedium: 'date', dateMediumWeekday: 'date', dateFull: 'date', dateHuge: 'date', yearOnly: 'date', monthYearShort: 'date',
+  timeSimple: 'time', time24: 'time', timeOffset: 'time', timeLongOffset: 'time', time24Offset: 'time',
+  datetimeShort: 'datetime', datetimeExtraShort: 'datetime', datetimeShortOffset: 'datetime', datetimeMedium: 'datetime', datetimeMediumWeekday: 'datetime',
+  datetimeFull: 'datetime', datetimeHuge: 'datetime', datetimeHugeOffset: 'datetime', datetime24Short: 'datetime', datetimeMediumOffset: 'datetime',
+  datetimeMediumWeekdayOffset: 'datetime', datetimeFullOffset: 'datetime', datetime24Medium: 'datetime', datetime24MediumWeekday: 'datetime', datetime24Full: 'datetime', datetime24Huge: 'datetime'
+};
+export const DURATION_FORMATS = ['clock', 'words', 'decimal'];
 export const BADGE_COLORS = ['green', 'yellow', 'orange', 'red', 'purple', 'blue', 'sky', 'lime', 'pink', 'light-gray'];
-export const NUMBER_FORMATS = ['plain', 'gbp', 'eur', 'usd', 'percent'];
 export const WIDTHS = ['full', 'half', 'third'];
 export const FILTER_OPS = ['is', 'not', 'contains', 'empty', 'notempty', 'before', 'after', 'gt', 'lt'];
 export const VIEW_LIMITS = [50, 100, 250, 500, 1000];
 
 export const LIMITS = {
-  fields: 80,          // fields per board (including sections and headers)
+  fields: 200,         // fields per board (including sections and headers)
   options: 30,         // options per choice / multi field
   name: 60,            // field name length
   option: 40,          // option label length
@@ -40,6 +55,29 @@ export function isTrelloId(value) {
 
 export function isLayout(field) {
   return LAYOUT_TYPES.includes(field.type);
+}
+
+export function isComputed(field) {
+  return COMPUTED_TYPES.includes(field.type);
+}
+
+const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+const CURRENCY_RE = /^[A-Z]{3}$/;
+
+function intIn(value, min, max, fallback) {
+  const n = Number(value);
+  return Number.isInteger(n) && n >= min && n <= max ? n : fallback;
+}
+
+function numOr(value, fallback) {
+  const n = Number(value);
+  return value !== '' && value !== null && value !== undefined && Number.isFinite(n) ? n : fallback;
+}
+
+/** Short symbol text (emoji allowed), e.g. for custom progress bars. */
+function symbol(value, fallback) {
+  const s = cleanText(value, 16);
+  return s && [...s].length <= 4 ? s : fallback;
 }
 
 function cleanText(value, max) {
@@ -90,7 +128,7 @@ export function sanitizeFields(input) {
       shown: f.shown !== false,
       badge: type !== 'notes' && !!f.badge,
       badgeName: !!f.badgeName,
-      required: type !== 'checkbox' && !!f.required,
+      required: !['checkbox', ...COMPUTED_TYPES].includes(type) && !!f.required,
       help: cleanText(f.help, LIMITS.help),
       placeholder: cleanText(f.placeholder, LIMITS.placeholder),
       width: pick(f.width, WIDTHS, 'full'),
@@ -102,22 +140,42 @@ export function sanitizeFields(input) {
     }
     if (type === 'multi') field.options = sanitizeOptions(f, name);
     if (type === 'number') {
-      field.format = pick(f.format, NUMBER_FORMATS, 'plain');
-      const d = Number(f.decimals);
-      field.decimals = Number.isInteger(d) && d >= 0 && d <= 4 ? d : 2;
+      field.format = pick(f.format, NUMBER_FORMAT_IDS, 'standard');
+      field.decimals = intIn(f.decimals, 0, 6, 2);
+      field.currency = CURRENCY_RE.test(f.currency) ? f.currency : 'GBP';
+    }
+    if (type === 'number' || type === 'progress') {
+      field.scale = !!f.scale;
+      field.low = numOr(f.low, 33);
+      field.high = numOr(f.high, 66);
+      field.invert = !!f.invert;
     }
     if (type === 'rating') {
-      const m = Number(f.max);
-      field.max = Number.isInteger(m) && m >= 3 && m <= 10 ? m : 5;
+      field.max = intIn(f.max, 3, 10, 5);
+      field.style = pick(f.style, RATING_STYLES, 'classicStars');
     }
-    if (type === 'date') field.deadline = f.deadline !== false;
+    if (type === 'progress' || type === 'checklist') {
+      field.style = pick(f.style, PROGRESS_STYLES, type === 'checklist' ? 'parallelogram' : 'bar');
+      if (field.style === 'custom') { field.filled = symbol(f.filled, '🔵'); field.empty = symbol(f.empty, '⚪'); }
+    }
+    if (type === 'checkbox') field.style = pick(f.style, TOGGLE_STYLES, 'checkbox');
+    if (type === 'date' || type === 'carddate') {
+      field.format = Object.prototype.hasOwnProperty.call(DATE_FORMAT_KINDS, f.format) ? f.format : 'dateMedium';
+      field.deadline = type === 'date' && f.deadline !== false;
+      if (f.warnDays !== undefined && f.warnDays !== null && f.warnDays !== '') field.warnDays = intIn(f.warnDays, 0, 365, 7);
+    }
+    if (type === 'carddate') field.source = pick(f.source, ['created', 'activity', 'due'], 'created');
+    if (type === 'duration') field.format = pick(f.format, DURATION_FORMATS, 'clock');
+    if (type === 'member' || type === 'cardref') field.multiple = !!f.multiple;
+    if (type === 'cardid') field.prefix = cleanText(f.prefix ?? '#', 10);
+    if (type === 'checklist') field.checklist = cleanText(f.checklist, 100);
     return field;
   });
 }
 
 /** Validate one value for a field. Returns the normalised value, or null to clear it. */
 export function sanitizeValue(field, value) {
-  if (isLayout(field)) throw new ValidationError(`"${field.name}" does not hold a value`);
+  if (isLayout(field) || isComputed(field)) throw new ValidationError(`"${field.name}" does not hold a value`);
   if (value === null || value === undefined || value === '') return null;
   switch (field.type) {
     case 'text': {
@@ -145,8 +203,32 @@ export function sanitizeValue(field, value) {
       return n || null;
     }
     case 'date': {
-      if (!DATE_RE.test(String(value)) || Number.isNaN(Date.parse(`${value}T00:00:00Z`))) throw new ValidationError(`"${field.name}" must be a date (YYYY-MM-DD)`);
-      return String(value);
+      const kind = DATE_FORMAT_KINDS[field.format] || 'date';
+      const v = String(value);
+      if (kind === 'time') {
+        if (!TIME_RE.test(v)) throw new ValidationError(`"${field.name}" must be a time (HH:MM)`);
+        return v;
+      }
+      if (kind === 'datetime') {
+        const t = Date.parse(v);
+        if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(v) || Number.isNaN(t)) throw new ValidationError(`"${field.name}" must be a date and time`);
+        return new Date(t).toISOString();
+      }
+      if (!DATE_RE.test(v) || Number.isNaN(Date.parse(`${v}T00:00:00Z`))) throw new ValidationError(`"${field.name}" must be a date (YYYY-MM-DD)`);
+      return v;
+    }
+    case 'duration': {
+      const n = Number(value);
+      if (!Number.isInteger(n) || n < 0 || n > 1000000) throw new ValidationError(`"${field.name}" must be a number of minutes`);
+      return n || null;
+    }
+    case 'member':
+    case 'cardref': {
+      const list = Array.isArray(value) ? [...new Set(value)] : [value];
+      if (list.some((id) => !isTrelloId(id))) throw new ValidationError(`"${field.name}" has an invalid ${field.type === 'member' ? 'member' : 'card'}`);
+      if (!field.multiple && list.length > 1) throw new ValidationError(`"${field.name}" takes one ${field.type === 'member' ? 'member' : 'card'}`);
+      if (list.length > 50) throw new ValidationError(`"${field.name}" has too many entries`);
+      return list.length ? list : null;
     }
     case 'choice': {
       if (!field.options.some((o) => o.id === value)) throw new ValidationError(`"${field.name}" has no option ${value}`);
@@ -205,6 +287,7 @@ export function sanitizeCardPatch(fields, patch) {
   if (hasVisible && patch.visible !== null) {
     if (!Array.isArray(patch.visible)) throw new ValidationError('visible must be a list');
     visible = [...new Set(patch.visible.filter((id) => byId.has(id) && !isLayout(byId.get(id))))];
+    // Computed fields can be shown or hidden like any other field.
   }
   return { values, hasVisible, visible };
 }

@@ -1,5 +1,5 @@
 // Card-back tab: this card's custom field values, and which fields it shows.
-import { api, visibleFields, isLayout, markCardChanged, NeedsAuthError, TYPES } from '../lib/fields.js';
+import { api, visibleFields, isLayout, isComputed, markCardChanged, NeedsAuthError, TYPES, loadContext, valuesWithComputed } from '../lib/fields.js';
 import { renderForm, groupFields, typeIcon } from '../lib/field-ui.js';
 import { openBoard } from '../features/fields.js';
 import { authorize } from '../lib/trello-api.js';
@@ -34,6 +34,7 @@ export default {
       return;
     }
 
+    const fctx = await loadContext(t, fields, { boardId: data.boardId });
     let values = { ...(data.values || {}) };
     let visible = data.visible;
 
@@ -93,7 +94,9 @@ export default {
       clear(body);
       const n = visibleFields(fields, visible).length;
       count.textContent = `${n} of ${fields.filter((f) => !isLayout(f)).length} fields shown`;
-      body.append(renderForm(fields, values, (f, v) => save({ values: { [f.id]: v } }, { badge: !!(f.badge || f.required) }), { visible, state: formState, fit: ctx.fit }));
+      const shown = valuesWithComputed(fields, values, cardId, fctx);
+      body.append(renderForm(fields, shown, (f, v) => (isComputed(f) ? false : save({ values: { [f.id]: v } }, { badge: !!(f.badge || f.required) })),
+        { visible, state: formState, fit: ctx.fit, ctx: fctx, cardId, showCard: (id) => t.showCard(id) }));
       ctx.fit();
     }
 

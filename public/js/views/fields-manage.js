@@ -1,11 +1,12 @@
 // "Add / edit fields": field list (drag to reorder), a gallery of field types,
 // the editor for the selected field, and a live preview on one of the board's cards.
-import { api, TYPES, TEMPLATES, COLORS, NUMBER_FORMATS, WIDTHS, newId, isLayout, fromTemplate, sampleValue, markBoardChanged } from '../lib/fields.js';
+import { api, TYPES, TEMPLATES, COLORS, WIDTHS, newId, isLayout, isComputed, fromTemplate, sampleValue, markBoardChanged, valuesWithComputed, emptyContext } from '../lib/fields.js';
+import { PROGRESS_STYLES, RATING_STYLES, TOGGLE_STYLES, NUMBER_FORMATS, DATE_FORMATS, DURATION_FORMATS, numberFormatOf, currencies } from '../lib/field-styles.js';
 import { renderForm, editorFor, typeIcon } from '../lib/field-ui.js';
 import { clear, el, setStatus } from '../lib/util.js';
 
 // Types a field can switch between without losing the meaning of its values.
-const FAMILIES = [['text', 'notes', 'url', 'email', 'phone'], ['choice', 'multi'], ['number', 'progress', 'rating'], ['date'], ['checkbox'], ['section'], ['header']];
+const FAMILIES = [['text', 'notes', 'url', 'email', 'phone'], ['choice', 'multi'], ['number', 'progress', 'rating', 'duration']];
 const family = (type) => FAMILIES.find((f) => f.includes(type)) || [type];
 
 let view = 'edit'; // 'edit' | 'gallery'
@@ -147,8 +148,8 @@ export function drawManage(root, ctx) {
         for (const tpl of items) {
           const sampleField = fromTemplate(tpl);
           const sample = isLayout(sampleField)
-            ? el('div', { class: sampleField.type === 'header' ? 'fheader c-blue' : 'ftabs mini' }, sampleField.type === 'header' ? 'Heading' : el('button', { class: 'active', type: 'button' }, 'Section'))
-            : editorFor(sampleField, sampleValue(tpl, sampleField), async () => false, { readOnly: true, compact: true });
+            ? el('div', { class: sampleField.type === 'header' ? 'fheader c-blue' : 'ftabs mini' }, sampleField.type === 'header' ? 'Header' : el('button', { class: 'active', type: 'button' }, 'Section'))
+            : editorFor(sampleField, sampleValue(tpl, sampleField), async () => false, { readOnly: true, compact: true, ctx: emptyContext() });
           grid.append(el('div', { class: 'gcard' },
             el('div', { class: 'row nowrap' }, typeIcon(sampleField.type), el('div', { class: 'grow' }, el('strong', {}, tpl.name), el('div', {}, el('small', { class: 'muted' }, tpl.desc))),
               el('button', { class: 'small', 'aria-label': `Add ${tpl.name}`, onclick: () => add(tpl) }, '+ Add')),
@@ -233,17 +234,69 @@ export function drawManage(root, ctx) {
           if (ty === 'choice') f.display = display;
           if (ty === 'notes') f.badge = false;
           if ((ty === 'choice' || ty === 'multi') && !(f.options && f.options.length)) f.options = [{ id: newId(), label: 'Option 1', color: 'blue' }];
-          if (ty === 'rating' && !f.max) f.max = 5;
-          if (ty === 'number' && !f.format) { f.format = 'plain'; f.decimals = 2; }
+          if (ty === 'rating') { f.max = f.max || 5; f.style = f.style && RATING_STYLES[f.style] ? f.style : 'classicStars'; }
+          if (ty === 'progress') f.style = f.style && PROGRESS_STYLES[f.style] ? f.style : 'bar';
+          if (ty === 'number' && !NUMBER_FORMATS[numberFormatOf(f).format]) { f.format = 'standard'; f.decimals = 2; }
+          if (ty === 'duration') f.format = DURATION_FORMATS[f.format] ? f.format : 'clock';
           touch({ full: true });
         }));
     }
-    if (f.type === 'number') {
-      general.push(select('Format', f.format || 'plain', NUMBER_FORMATS, (v) => { f.format = v; touch(); }));
-      general.push(select('Decimal places', String(Number.isInteger(f.decimals) ? f.decimals : 2), { 0: '0', 1: '1', 2: '2', 3: '3', 4: '4' }, (v) => { f.decimals = Number(v); touch(); }));
+    const styleSelect = (label, catalog, key, fallback) => select(label, f[key] || fallback, Object.fromEntries(Object.entries(catalog).map(([k, s]) => [k, s.label])), (v) => { f[key] = v; touch({ full: true }); });
+    const numberInput = (label, key, attrs, onset) => {
+      const inp = el('input', { type: 'number', value: f[key] ?? '', ...attrs, oninput: () => { onset(inp.value === '' ? undefined : Number(inp.value)); touch(); } });
+      return el('label', { class: 'kv-row' }, el('span', {}, label), inp);
+    };
+    if (f.type === 'checkbox') general.push(styleSelect('Toggle style', TOGGLE_STYLES, 'style', 'checkbox'));
+    if (f.type === 'rating') {
+      general.push(styleSelect('Rating style', RATING_STYLES, 'style', 'classicStars'));
+      general.push(select('How many', String(f.max || 5), Object.fromEntries([3, 4, 5, 6, 7, 8, 9, 10].map((n) => [String(n), String(n)])), (v) => { f.max = Number(v); touch(); }));
     }
-    if (f.type === 'rating') general.push(select('Number of stars', String(f.max || 5), Object.fromEntries([3, 4, 5, 6, 7, 8, 9, 10].map((n) => [String(n), String(n)])), (v) => { f.max = Number(v); touch(); }));
-    if (f.type === 'date') general.push(check('Deadline colours', f.deadline !== false, (v) => { f.deadline = v; touch(); }, { hint: 'green → yellow → orange → red as the date nears' }));
+    if (f.type === 'progress' || f.type === 'checklist') {
+      general.push(styleSelect('Bar style', PROGRESS_STYLES, 'style', f.type === 'checklist' ? 'parallelogram' : 'bar'));
+      if (f.style === 'custom') {
+        const sym = (label, key, ph) => { const inp = el('input', { type: 'text', maxlength: '8', value: f[key] || ph, oninput: () => { f[key] = inp.value; touch(); } }); return el('label', { class: 'kv-row' }, el('span', {}, label), inp); };
+        general.push(sym('Filled symbol', 'filled', '🔵'), sym('Empty symbol', 'empty', '⚪'));
+      }
+    }
+    if (f.type === 'checklist') {
+      const inp = el('input', { type: 'text', maxlength: '100', value: f.checklist || '', placeholder: 'Leave empty to count every checklist on the card', oninput: () => { f.checklist = inp.value; touch(); } });
+      general.push(el('label', { class: 'kv-row' }, el('span', {}, 'Checklist name'), inp));
+    }
+    if (f.type === 'number') {
+      const { format, currency } = numberFormatOf(f);
+      general.push(select('Number format', format, Object.fromEntries(Object.entries(NUMBER_FORMATS).map(([k, s]) => [k, `${s.label}: ${s.desc}`])), (v) => { f.format = v; f.currency = currency; touch({ full: true }); }));
+      if (format === 'currency' || format === 'accounting') {
+        const list = currencies();
+        general.push(select('Currency', currency, Object.fromEntries(list.map((c) => [c, c])), (v) => { f.format = format; f.currency = v; touch(); }));
+      }
+      general.push(select('Decimal places', String(Number.isInteger(f.decimals) ? f.decimals : 2), Object.fromEntries([0, 1, 2, 3, 4, 5, 6].map((n) => [String(n), String(n)])), (v) => { f.decimals = Number(v); touch(); }));
+    }
+    if (f.type === 'number' || f.type === 'progress') {
+      general.push(check('Colour by value', !!f.scale, (v) => { f.scale = v; touch({ full: true }); }, { hint: 'red below the first threshold, yellow below the second, green above' }));
+      if (f.scale) {
+        general.push(numberInput('Red below', 'low', { step: 'any', placeholder: '33' }, (v) => { f.low = v; }));
+        general.push(numberInput('Green from', 'high', { step: 'any', placeholder: '66' }, (v) => { f.high = v; }));
+        general.push(check('Reverse colours (low is good)', !!f.invert, (v) => { f.invert = v; touch(); }));
+      }
+    }
+    if (f.type === 'date' || f.type === 'carddate') {
+      if (f.type === 'carddate') general.push(select('Date to show', f.source || 'created', { created: 'When the card was created', activity: 'Last activity on the card', due: 'The card\'s due date' }, (v) => { f.source = v; touch(); }));
+      const groups = { date: 'Dates', time: 'Times', datetime: 'Dates with times' };
+      const sel = el('select', { onchange: () => { f.format = sel.value; touch({ full: true }); } },
+        Object.entries(groups).map(([kind, label]) => el('optgroup', { label }, Object.entries(DATE_FORMATS).filter(([, d]) => d.kind === kind)
+          .map(([k, d]) => el('option', { value: k, selected: k === (f.format || 'dateMedium') }, `${d.label} (${new Intl.DateTimeFormat('en-GB', d.opts).format(new Date(1983, 9, 14, 9, 30))})`)))));
+      general.push(el('label', { class: 'kv-row' }, el('span', {}, 'Display format'), sel));
+      if (f.type === 'date' && (DATE_FORMATS[f.format] || DATE_FORMATS.dateMedium).kind !== 'time') {
+        general.push(check('Deadline colours', f.deadline !== false, (v) => { f.deadline = v; touch({ full: true }); }));
+        if (f.deadline !== false) general.push(numberInput('Warning days', 'warnDays', { min: '0', max: '365', placeholder: 'default: red ≤14, orange ≤30, yellow ≤60 days' }, (v) => { if (v === undefined) delete f.warnDays; else f.warnDays = Math.round(v); }));
+      }
+    }
+    if (f.type === 'duration') general.push(select('Show as', f.format || 'clock', Object.fromEntries(Object.entries(DURATION_FORMATS).map(([k, d]) => [k, d.label])), (v) => { f.format = v; touch(); }));
+    if (f.type === 'member' || f.type === 'cardref') general.push(check(f.type === 'member' ? 'Allow several members' : 'Allow several cards', !!f.multiple, (v) => { f.multiple = v; touch(); }));
+    if (f.type === 'cardid') {
+      const inp = el('input', { type: 'text', maxlength: '10', value: f.prefix ?? '#', oninput: () => { f.prefix = inp.value; touch(); } });
+      general.push(el('label', { class: 'kv-row' }, el('span', {}, 'Prefix'), inp));
+    }
     if (f.type === 'section') general.push(check('Hide tab content by default', !!f.collapsed, (v) => { f.collapsed = v; touch(); }, { hint: 'the tab starts closed on each card' }));
     if (general.length) main.append(section('General', ...general));
 
@@ -270,9 +323,9 @@ export function drawManage(root, ctx) {
         check('Show field value on card front', !!f.badge, (v) => { f.badge = v; touch({ full: true }); }, { disabled: f.type === 'notes', hint: f.type === 'notes' ? 'notes are too long for a badge' : '' }),
         check('Show field name on card front', !!f.badgeName, (v) => { f.badgeName = v; touch(); }, { disabled: !f.badge || f.type === 'checkbox' }),
         check('Hide field on new cards by default', f.shown === false, (v) => { f.shown = !v; touch(); }, { hint: 'cards can still show it with "Visible fields"' }),
-        f.type !== 'checkbox' ? check('Required', !!f.required, (v) => { f.required = v; touch(); }, { hint: 'turns red while empty' }) : null,
+        f.type !== 'checkbox' && !isComputed(f) ? check('Required', !!f.required, (v) => { f.required = v; touch(); }, { hint: 'turns red while empty' }) : null,
         el('label', { class: 'kv-row' }, el('span', {}, 'Help text'), help),
-        el('label', { class: 'kv-row' }, el('span', {}, 'Placeholder'), ph)));
+        isComputed(f) ? null : el('label', { class: 'kv-row' }, el('span', {}, 'Placeholder'), ph)));
       // Layout
       main.append(section('Field editor layout',
         select('Editor width', f.width || 'full', WIDTHS, (v) => { f.width = v; touch(); }),
@@ -298,7 +351,7 @@ export function drawManage(root, ctx) {
     const visible = Array.isArray(card.visible) ? card.visible.concat(draft.filter((f) => !ctx.board.fields.some((x) => x.id === f.id)).map((f) => f.id)).filter((id) => known.has(id)) : null;
     preview.append(el('label', {}, 'Preview card'), sel,
       el('div', { class: 'preview-card' }, el('div', { class: 'preview-title' }, '▤ Keel · Fields'),
-        draft.some((f) => !isLayout(f)) ? renderForm(draft, card.values || {}, async () => false, { readOnly: true, visible, state: {} }) : el('p', { class: 'muted' }, 'Add a field to see it here.')),
+        draft.some((f) => !isLayout(f)) ? renderForm(draft, valuesWithComputed(draft, card.values || {}, previewCardId, ctx.fieldCtx || emptyContext()), async () => false, { readOnly: true, visible, state: {}, ctx: ctx.fieldCtx || emptyContext(), cardId: previewCardId }) : el('p', { class: 'muted' }, 'Add a field to see it here.')),
       el('small', { class: 'muted' }, 'Shows this card with your unsaved changes. Values are edited on the card itself.'));
   }
 

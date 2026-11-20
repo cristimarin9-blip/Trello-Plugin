@@ -24,7 +24,7 @@ small, .muted { color: var(--muted); }
 .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .row.between { justify-content: space-between; }
 .grow { flex: 1 1 auto; }
-input[type=text], input[type=search], input[type=number], input[type=date], input[type=datetime-local], input[type=url], input[type=email], input[type=tel], select, textarea {
+input[type=text], input[type=search], input[type=number], input[type=date], input[type=datetime-local], input[type=url], input[type=email], input[type=tel], input[type=time], input[type=month], select, textarea {
   width: 100%; padding: 6px 8px; border: 2px solid var(--border); border-radius: 3px; background: var(--bg-soft); font: inherit; color: var(--text);
 }
 input:focus, select:focus, textarea:focus { outline: none; border-color: var(--blue); background: #fff; }
@@ -120,7 +120,7 @@ tr.clickable:hover td { background: var(--bg-soft); }
 .progress { position: relative; height: 8px; border-radius: 4px; background: #091e420f; overflow: hidden; min-width: 60px; }
 .progress span { position: absolute; inset: 0 auto 0 0; background: var(--accent); border-radius: 4px; }
 .progress.small { display: inline-block; width: 70px; height: 6px; vertical-align: middle; margin-right: 6px; }
-.progress-edit input[type=range] { width: 100%; margin: 2px 0 0; }
+.progress-edit input[type=range] { width: 100%; max-width: 320px; margin: 2px 0 0; }
 .check { margin: 0; font-weight: 400; text-transform: none; color: var(--text); font-size: 13px; }
 .affix > .muted { font-weight: 600; }
 .field-link { text-decoration: none; padding: 4px 6px; border-radius: 3px; background: #091e420a; }
@@ -239,3 +239,40 @@ tr.clickable:hover td { background: var(--bg-soft); }
 .group-toggle { background: none; padding: 2px 4px; font-size: 13px; }
 .avatar { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 50%; background: #dfe1e6; font-size: 10px; font-weight: 700; margin-right: 2px; }
 .import-box { max-width: 760px; }
+
+/* Fields: toggles, ratings, bars, members, card links */
+.toggle { display: inline-flex; align-items: center; gap: 6px; background: none; padding: 2px; }
+.toggle.static { padding: 0; }
+.toggle:disabled { opacity: 1; cursor: default; }
+.toggle-text { font-size: 12px; }
+.tglyph { display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 20px; font-size: 15px; line-height: 1; color: var(--muted); }
+.tglyph.on { color: #1f845a; }
+.tglyph.box-square, .tglyph.box-round { width: 20px; border: 2px solid #8590a2; font-size: 12px; font-weight: 700; }
+.tglyph.box-square { border-radius: 4px; } .tglyph.box-round { border-radius: 50%; }
+.tglyph.box-square.on, .tglyph.box-round.on { background: #1f845a; border-color: #1f845a; color: #fff; }
+.tglyph.faded { opacity: .3; filter: grayscale(1); }
+.tglyph.ghost { border-style: dashed; border-color: #c1c7d0; }
+.switch { position: relative; display: inline-block; width: 34px; height: 18px; border-radius: 9px; background: #c1c7d0; transition: background .15s; }
+.switch span { position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: #fff; transition: left .15s; }
+.switch.on { background: #1f845a; } .switch.on span { left: 18px; }
+.stars button { color: #b3b9c4; }
+.stars button.on { color: var(--on, #e2a400); }
+.stars.emoji button { font-size: 16px; }
+.stars.emoji button:not(.on) { opacity: .45; }
+.stars-view.emoji { letter-spacing: 0; }
+.bar-text { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; letter-spacing: 0; white-space: pre; color: var(--accent); }
+.progress.c-red span { background: var(--red); } .progress.c-yellow span { background: #e2b203; } .progress.c-green span { background: #22a06b; }
+.progress-edit { display: flex; flex-direction: column; gap: 2px; }
+.members .chip.member { display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px 1px 2px; }
+.members .chip.member .avatar { width: 20px; height: 20px; font-size: 9px; }
+.member-tag { display: inline-flex; align-items: center; gap: 4px; margin-right: 6px; }
+.member-tag .avatar { width: 20px; height: 20px; font-size: 9px; }
+.cardref { display: inline-flex; align-items: center; gap: 2px; padding: 1px 2px 1px 8px; border: 1px solid var(--line); border-radius: 12px; background: #fff; font-size: 12px; }
+.linklike { background: none; padding: 1px 2px; color: var(--accent); font-size: 12px; }
+.linklike:disabled { color: var(--text); cursor: default; opacity: 1; }
+.cardref-results { display: flex; flex-direction: column; margin-top: 2px; }
+.cardref-results .result { text-align: left; background: #fff; border-bottom: 1px solid var(--line); border-radius: 0; font-size: 13px; }
+.cardref-results .result:hover { background: var(--accent-soft); }
+.cardid { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-weight: 600; }
+.date-shown, .num-shown { white-space: nowrap; }
+.ftable td.computed { color: var(--text); background: #fafbfc; cursor: default; }
