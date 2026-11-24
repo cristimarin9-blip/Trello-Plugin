@@ -19,7 +19,7 @@ A Trello Power-Up built for an accountancy practice. It adds, to any board you e
 | Bulk card actions | Board button **Bulk actions** |
 | Custom fields: text, multi-line notes, number/money/%, date, segment buttons, dropdown, coloured chips, checkbox, rating, progress bar, link, email, phone, section tabs and headings; per-card visible fields; badges; table view with filter/sort/columns/group/saved views/inline editing/export | Card back → **Fields** tab (**Visible fields**, **Manage fields**) · board button **Fields** (Table view / Add / edit fields / Import) · field badges on the card front |
 | Choose which deadlines show on card fronts | Power-Up settings → **Card-front deadlines** |
-| See several Keel tabs at once on a card | Keel section → **⊞ Several tabs** (or Ctrl/Cmd-click a tab) (panels one under another) |
+| See several Keel tabs at once on a card | Keel section → **⊞ Several tabs** (or Ctrl/Cmd-click a tab); panels one under another, **↑ ↓** to reorder |
 | Feature switches: defaults for cards, per-card and bulk on/off | Power-Up settings → **Default features for cards** · card back → **⚙ Features** tab · Bulk actions → *Turn feature ON/OFF* / *Reset to board defaults* |
 
 `docs/FEATURES.md` explains how each one works and where Trello's Power-Up platform limits what is possible (for example, Trello gives no real "viewed" or "logged in" events, and a Power-Up cannot place a search box inside a list header).

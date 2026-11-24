@@ -21,9 +21,10 @@ const app = byId('app');
 const STATE_KEY = 'keel:card-panels';
 const OLD_TAB_KEY = 'practice-powerup:last-tab';
 
-// Per person (this browser), the same on every card: { several, open: [tabId] }.
+// Per person (this browser), the same on every card: { several, open: [tabId], order: [tabId] }.
+// `order` is the tab order chosen with the panels' ↑ ↓ buttons; it also orders the tab bar.
 const state = (() => {
-  const fallback = { several: false, open: [] };
+  const fallback = { several: false, open: [], order: [] };
   try {
     const saved = JSON.parse(localStorage.getItem(STATE_KEY) || 'null');
     if (saved && Array.isArray(saved.open)) return { ...fallback, ...saved };
@@ -41,6 +42,28 @@ app.append(nav, body);
 
 const isOpen = (id) => state.open.includes(id);
 const openTabs = () => visible.filter((tab) => isOpen(tab.id));
+
+/** Tabs in the person's chosen order; tabs not placed yet keep their usual position at the end. */
+function sortTabs(list) {
+  const rank = (id) => { const i = (state.order || []).indexOf(id); return i === -1 ? 1000 + TABS.findIndex((x) => x.id === id) : i; };
+  return [...list].sort((a, b) => rank(a.id) - rank(b.id));
+}
+
+/** Move an open panel above (-1) or below (+1) the next open panel. */
+function move(id, d) {
+  const open = openTabs().map((tab) => tab.id);
+  const i = open.indexOf(id);
+  const neighbour = open[i + d];
+  if (i === -1 || !neighbour) return;
+  const order = sortTabs(TABS).map((tab) => tab.id).filter((x) => x !== id);
+  const at = order.indexOf(neighbour);
+  order.splice(d < 0 ? at : at + 1, 0, id);
+  state.order = order;
+  visible = sortTabs(visible);
+  persist();
+  renderNav();
+  renderBody();
+}
 
 function toggle(id) {
   if (isOpen(id)) {
@@ -105,11 +128,14 @@ async function renderBody() {
     await renderTab(tabs[0] || visible[0], root);
   } else {
     body.className = 'panels stack';
-    await Promise.all(tabs.map((tab) => {
+    await Promise.all(tabs.map((tab, i) => {
       const root = el('div', { class: 'panel-body' });
       body.append(el('section', { class: 'panel', 'aria-label': tab.label },
         el('header', {}, el('span', {}, tab.label),
-          el('button', { class: 'icon', title: `Hide ${tab.label}`, 'aria-label': `Hide ${tab.label}`, onclick: () => choose(tab.id) }, '×')),
+          el('span', { class: 'panel-tools' },
+            el('button', { class: 'icon', title: `Move ${tab.label} up`, 'aria-label': `Move ${tab.label} up`, disabled: i === 0, onclick: () => move(tab.id, -1) }, '↑'),
+            el('button', { class: 'icon', title: `Move ${tab.label} down`, 'aria-label': `Move ${tab.label} down`, disabled: i === tabs.length - 1, onclick: () => move(tab.id, 1) }, '↓'),
+            el('button', { class: 'icon', title: `Hide ${tab.label}`, 'aria-label': `Hide ${tab.label}`, onclick: () => choose(tab.id) }, '×'))),
         root));
       return renderTab(tab, root);
     }));
@@ -119,7 +145,7 @@ async function renderBody() {
 
 async function load() {
   const { enabled } = await cardFeatures(t);
-  visible = TABS.filter((tab) => tab.always || enabled[tab.id]);
+  visible = sortTabs(TABS.filter((tab) => tab.always || enabled[tab.id]));
   state.open = state.open.filter((id) => visible.some((tab) => tab.id === id));
   if (!state.open.length) state.open = [visible[0].id];
   if (!state.several) state.open = state.open.slice(0, 1);

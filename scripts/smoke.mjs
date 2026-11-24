@@ -136,6 +136,26 @@ await visit('/views/card-back.html', true, async (page, errors) => {
   console.log(`  several tabs: ${panels.join(' | ')}`);
   if (panels.length < 3 || !panels.includes('Company') || !panels.includes('Client stages') || !panels.includes('Subtasks')) errors.push(`several tabs not shown: ${panels.join(', ')}`);
   if (!(await page.locator('#tab-body.panels.stack').count())) errors.push('panels should be stacked');
+  // Move panels up and down; the tab bar follows.
+  const panelOrder = () => page.locator('#tab-body .panel > header > span:first-child').allTextContents();
+  const before = await panelOrder();
+  await page.locator('button[aria-label="Move Subtasks up"]').click();
+  await page.waitForTimeout(200);
+  const after = await panelOrder();
+  const si = before.indexOf('Subtasks');
+  if (after[si - 1] !== 'Subtasks' || after[si] !== before[si - 1]) errors.push(`Move up did not swap panels: ${before.join(',')} -> ${after.join(',')}`);
+  if (!(await page.locator(`button[aria-label="Move ${after[0]} up"]`).isDisabled())) errors.push('the top panel cannot move further up');
+  const bar = (await page.locator('.tabs button.tab').allTextContents()).map((x) => x.replace(/^[☑☐]/, ''));
+  if (bar.indexOf('Subtasks') > bar.indexOf(after[si])) errors.push(`tab bar should follow the panel order: ${bar.join(',')}`);
+  await page.locator('button[aria-label="Move Subtasks down"]').click();
+  await page.waitForTimeout(200);
+  if ((await panelOrder()).join(',') !== before.join(',')) errors.push('Move down did not undo Move up');
+  await page.locator('button[aria-label="Move Company down"]').click();
+  await page.waitForTimeout(200);
+  const moved = await panelOrder();
+  const savedOrder = await page.evaluate(() => JSON.parse(localStorage.getItem('keel:card-panels')).order);
+  if (!savedOrder || savedOrder.indexOf('company') < savedOrder.indexOf(moved[0].toLowerCase().includes('client') ? 'crm' : moved[0].toLowerCase())) errors.push(`panel order not remembered: ${JSON.stringify(savedOrder)}`);
+  console.log(`  panel order: ${before.join(' > ')}  then  ${moved.join(' > ')}`);
   if (process.env.SHOTS) { await page.setViewportSize({ width: 760, height: 900 }); await page.screenshot({ path: `${process.env.SHOTS}/card-several.png`, fullPage: true }); }
   if (await page.locator('.tab-tool', { hasText: /Side by side|Stack/ }).count()) errors.push('there should be no side-by-side layout any more');
   const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('keel:card-panels')));
@@ -191,6 +211,35 @@ await visit('/views/card-back.html', true, async (page, errors) => {
   await page.waitForTimeout(400);
   crmNow = await page.evaluate(() => window.__makeT().get('card', 'shared', 'crm'));
   if (crmNow.vat.changed !== '2026-09-30') errors.push(`a half-typed date should not clear the saved one, saved ${crmNow.vat.changed}`);
+  // Choose the tracks that apply: turn VAT off (not VAT registered), PAYE on.
+  const chip = (name) => page.locator('.track-picker button', { hasText: name });
+  if ((await chip('VAT return').getAttribute('aria-pressed')) !== 'true') errors.push('VAT should start selected (seeded)');
+  await chip('VAT return').click();
+  await page.waitForTimeout(300);
+  crmNow = await page.evaluate(() => window.__makeT().get('card', 'shared', 'crm'));
+  if (crmNow.vat.on !== false || crmNow.vat.stage !== 'Sent for approval') errors.push(`turning VAT off should keep its data but stop tracking: ${JSON.stringify(crmNow.vat)}`);
+  if (await page.locator('.track', { hasText: 'VAT return' }).count()) errors.push('an unselected track should be hidden');
+  await chip('PAYE').click();
+  await page.waitForTimeout(300);
+  if (!(await page.locator('.track', { hasText: 'PAYE / payroll' }).count())) errors.push('selecting PAYE should show it');
+  // Collapse a track, then collapse/expand all.
+  await page.locator('.track', { hasText: 'PAYE / payroll' }).locator('.track-toggle').click();
+  await page.waitForTimeout(200);
+  if (await page.locator('.track', { hasText: 'PAYE / payroll' }).locator('select').count()) errors.push('collapsed track still shows its details');
+  const collapsedSaved = await page.evaluate(() => JSON.parse(localStorage.getItem('keel:crm-collapsed')));
+  if (!collapsedSaved || !Object.values(collapsedSaved)[0].includes('paye')) errors.push(`collapse not remembered: ${JSON.stringify(collapsedSaved)}`);
+  await page.locator('.track-picker button', { hasText: 'Collapse all' }).click();
+  await page.waitForTimeout(200);
+  if (await page.locator('.track select').count()) errors.push('Collapse all left details open');
+  await page.locator('.track-picker button', { hasText: 'Expand all' }).click();
+  await page.waitForTimeout(200);
+  if ((await page.locator('.track').count()) !== (await page.locator('.track select').count())) errors.push('Expand all left tracks collapsed');
+  if (process.env.SHOTS) {
+    await page.locator('.track', { hasText: 'PAYE / payroll' }).locator('.track-toggle').click();
+    await page.waitForTimeout(200);
+    await page.screenshot({ path: `${process.env.SHOTS}/client-stages.png`, fullPage: true });
+  }
+  await page.evaluate(() => localStorage.removeItem('keel:crm-collapsed'));
 });
 // Company tab: search by name, pick a result, snapshot is saved; a pre-search worker gives a clear message.
 const PROXY = 'https://proxy.test';

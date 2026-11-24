@@ -291,3 +291,11 @@ tr.clickable:hover td { background: var(--bg-soft); }
 .panel { border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px 10px; min-width: 0; background: #fff; }
 .panel > header { display: flex; justify-content: space-between; align-items: center; margin: -2px 0 6px; padding-bottom: 4px; border-bottom: 1px solid var(--border); font-size: 12px; font-weight: 700; color: var(--blue); text-transform: uppercase; letter-spacing: .03em; }
 .panel-body { min-width: 0; }
+
+/* Client stages: track picker and collapsible tracks */
+.track-picker { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 8px; font-size: 12px; }
+.track-picker .chip { font-size: 12px; }
+.track.collapsed { padding: 4px 8px; }
+.track-toggle { background: none; padding: 2px 4px 2px 0; font-weight: 600; display: inline-flex; gap: 6px; align-items: center; }
+.track-toggle .caret { color: var(--muted); width: 10px; }
+.panel-tools { display: inline-flex; gap: 2px; } .panel-tools button { background: none; }
