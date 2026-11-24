@@ -38,16 +38,58 @@ export const TRACKS = {
 };
 export const TRACK_ORDER = ['bookkeeping', 'accounts', 'vat', 'paye'];
 
+const MONTHS = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
+const DATE_NUM = '(\\d{1,2})[./-](\\d{1,2})[./-](\\d{4}|\\d{2})(?!\\d)';
+const DATE_TEXT = '(\\d{1,2})(?:st|nd|rd|th)?\\s*(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\\.?,?\\s*(\\d{4}|\\d{2})(?!\\d)';
+const MARKER = '(?:YE|PE|QE|[YPQ]\\/E|year\\s*end|period\\s*end|quarter\\s*end)\\s*:?\\s*';
+
+function isoDate(d, m, y) {
+  const day = Number(d);
+  const month = typeof m === 'string' && MONTHS[m.toLowerCase().slice(0, 3)] ? MONTHS[m.toLowerCase().slice(0, 3)] : Number(m);
+  const year = String(y).length === 2 ? 2000 + Number(y) : Number(y);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) return null;
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
+/**
+ * Period end written in a card title (day first, UK style), e.g. "ACC YE31.08.26",
+ * "VAT QE 30/06/2026", "Year end 31 Aug 2026". A date after YE / PE / QE / "year end"
+ * wins; otherwise the first date in the title. Returns 'YYYY-MM-DD' or null.
+ */
+export function periodFromTitle(title) {
+  const s = String(title || '');
+  for (const pattern of [MARKER + DATE_NUM, MARKER + DATE_TEXT, `(?:^|[^\\d])${DATE_NUM}`, `(?:^|[^\\d])${DATE_TEXT}`]) {
+    const m = s.match(new RegExp(pattern, 'i'));
+    if (m) {
+      const iso = isoDate(m[1], m[2], m[3]);
+      if (iso) return iso;
+    }
+  }
+  return null;
+}
+
+/** Period end for a track: from the card title, else a date saved before titles were used. */
+export function periodOf(track, cardName) {
+  return periodFromTitle(cardName) || (track && track.period) || null;
+}
+
+/** Today as 'YYYY-MM-DD' in the viewer's timezone. */
+export function today() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 export function isFinal(trackKey, stage) {
   const stages = TRACKS[trackKey].stages;
   return stage === stages[stages.length - 1];
 }
 
-export function stageColor(trackKey, track, company) {
+export function stageColor(trackKey, track, company, cardName) {
   if (!track || !track.on) return null;
   const stage = track.stage || TRACKS[trackKey].stages[0];
   if (isFinal(trackKey, stage)) return 'green';
-  const due = TRACKS[trackKey].deadline(track.period, company);
+  const due = TRACKS[trackKey].deadline(periodOf(track, cardName), company);
   const days = daysUntil(due);
   if (days !== null && days < 0) return 'red';
   if (days !== null && days <= 14) return 'orange';
@@ -55,27 +97,28 @@ export function stageColor(trackKey, track, company) {
   return 'blue';
 }
 
-export function summarize(crm, company) {
+export function summarize(crm, company, cardName) {
   return TRACK_ORDER.filter((k) => crm && crm[k] && crm[k].on).map((k) => {
     const track = crm[k];
-    const due = TRACKS[k].deadline(track.period, company);
-    return { key: k, label: TRACKS[k].label, short: TRACKS[k].short, stage: track.stage || TRACKS[k].stages[0], period: track.period, due, color: stageColor(k, track, company), final: isFinal(k, track.stage) };
+    const period = periodOf(track, cardName);
+    const due = TRACKS[k].deadline(period, company);
+    return { key: k, label: TRACKS[k].label, short: TRACKS[k].short, stage: track.stage || TRACKS[k].stages[0], period, changed: track.changed || null, due, color: stageColor(k, track, company, cardName), final: isFinal(k, track.stage) };
   });
 }
 
 export async function cardBadges(t, enabled) {
   if (enabled && !enabled.crm) return [];
   const show = shownBadges(await getSettings(t));
-  const [crm, company] = await Promise.all([get(t, 'card', KEYS.crm), get(t, 'card', KEYS.company)]);
-  return summarize(crm, company)
+  const [crm, company, card] = await Promise.all([get(t, 'card', KEYS.crm), get(t, 'card', KEYS.company), t.card('name')]);
+  return summarize(crm, company, card.name)
     .filter((s) => !s.final && show[`crm_${s.key}`])
     .map((s) => ({ text: `${s.short}: ${s.stage}${s.due ? ` · ${formatDate(s.due, { year: undefined })}` : ''}`, color: s.color }));
 }
 
 export async function cardDetailBadges(t, enabled) {
   if (enabled && !enabled.crm) return [];
-  const [crm, company] = await Promise.all([get(t, 'card', KEYS.crm), get(t, 'card', KEYS.company)]);
-  return summarize(crm, company).map((s) => ({ title: s.label, text: `${s.stage}${s.due ? ` · due ${formatDate(s.due)}` : ''}`, color: s.color || deadlineColor(s.due) }));
+  const [crm, company, card] = await Promise.all([get(t, 'card', KEYS.crm), get(t, 'card', KEYS.company), t.card('name')]);
+  return summarize(crm, company, card.name).map((s) => ({ title: s.label, text: `${s.stage}${s.changed ? ` since ${formatDate(s.changed, { year: undefined })}` : ''}${s.due ? ` · due ${formatDate(s.due)}` : ''}`, color: s.color || deadlineColor(s.due) }));
 }
 
 export function boardButtons(icon) {

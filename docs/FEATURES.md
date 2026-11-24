@@ -38,8 +38,8 @@ Two platform facts shape most of the design:
 * **Code:** `public/js/tabs/checklist.js`.
 
 ## 7. Accountancy client CRM
-* **Built:** **Client stages** tab with four tracks — Bookkeeping, Year-end accounts, VAT return, PAYE/payroll — each with on/off, stage dropdown, "Next stage" button, period-end date and a note. Deadlines are computed per track: VAT = period end + 1 month + 7 days; PAYE = 22nd of the following month; accounts = Companies House *next due* if looked up, else period end + 9 months; bookkeeping target = period end + 1 month. Active, unfinished tracks show as **card-front badges** (`VAT: In progress · 7 Aug`) coloured green (complete), blue (in progress), orange (≤14 days), red (overdue), grey (not started). Badges can be turned off in Settings.
-* **Board view:** **Client CRM** board button → every client card in a table (stage per track, deadlines, Companies House dates, priority), with search, track filter, hide-completed, counters and CSV export. Click a row to open the card.
+* **Built:** **Client stages** tab with four tracks — Bookkeeping, Year-end accounts, VAT return, PAYE/payroll — each with on/off, stage dropdown, "Next stage" button, the **date the stage last changed** (filled in automatically when the stage changes or the track is switched on; can be corrected, 2020 or later) and a note. The **period end is read from the card title** (day first, UK style): a date after YE / PE / QE / "year end" wins, e.g. "ACC YE31.08.26", "VAT QE 30/06/2026", "Year end 31 Aug 2026"; otherwise the first date in the title. Cards set up before this keep their saved period end until the title has one. Deadlines are computed per track: VAT = period end + 1 month + 7 days; PAYE = 22nd of the following month; accounts = Companies House *next due* if looked up, else period end + 9 months; bookkeeping target = period end + 1 month. Active, unfinished tracks show as **card-front badges** (`VAT: In progress · 7 Aug`) coloured green (complete), blue (in progress), orange (≤14 days), red (overdue), grey (not started); which ones show is chosen in Power-Up settings → Card-front deadlines.
+* **Board view:** **Client CRM** board button → every client card in a table (stage per track with "since" date, deadlines, Companies House dates, priority), with search, track filter, hide-completed, counters and CSV export (period end, stage, stage changed and deadline per track). Click a row to open the card.
 * **Code:** `public/js/features/crm.js`, `public/js/tabs/crm.js`, `public/js/views/crm-board.js`.
 
 ## 8. Audit of logins and board activity
@@ -120,7 +120,7 @@ Two platform facts shape most of the design:
 | card | `company` | Companies House snapshot (number, name, status, dates, ≤8 officers) |
 | card | `views` | `{ total, viewers: { memberId: { n, u, at, c } } }` |
 | card | `parent` / `children` | `{ id, name }` / `[cardId]` |
-| card | `crm` | `{ bookkeeping|accounts|vat|paye: { on, stage, period, note } }` |
+| card | `crm` | `{ bookkeeping|accounts|vat|paye: { on, stage, changed, note, period? } }` (`period` only on cards set up before the title was used) |
 | card | `schedule` | `[{ id, at, type, listId?, listName?, value?, temp? }]` |
 | card | `fieldsRev` | time of the last Fields change (only used to refresh badges; values live in D1) |
 | card | `features` | per-card override `{ featureId: true/false }` (absent = follows board defaults) |

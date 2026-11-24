@@ -11,11 +11,12 @@ export function viewUrl(name) {
 }
 
 /**
- * Save a date / date-time / month <input> only once the date is complete. Browsers report
- * a date as soon as it is valid, so typing the year 2026 one digit at a time gives 0002,
- * 0020, 0202 and then 2026; saving (and redrawing) on the first of those throws away the
- * rest of the typing. This waits for a four-digit year and, with `minYear`, refuses
- * earlier years. Clearing the box saves an empty value.
+ * Save a date / date-time / month <input> only when the person has finished with it:
+ * when they leave the box or press Enter (or pick a date while the box is not focused).
+ * Browsers report a date as soon as it is valid, so typing 2026 one digit at a time gives
+ * 0002, 0020, 0202, and changing the month of a filled-in date is "valid" after one
+ * digit; saving then redraws the box and throws away the rest of the typing. Years must
+ * have four digits and, with `minYear`, be at least that year. Clearing saves empty.
  */
 export function bindDateCommit(input, commit, { minYear = 1000 } = {}) {
   let last = input.value;
@@ -23,8 +24,11 @@ export function bindDateCommit(input, commit, { minYear = 1000 } = {}) {
   if (minYear > 1000 && (input.type === 'date' || input.type === 'month' || input.type === 'datetime-local')) {
     input.min = input.type === 'month' ? `${minYear}-01` : input.type === 'date' ? `${minYear}-01-01` : `${minYear}-01-01T00:00`;
   }
+  let focused = false;
   const attempt = (final) => {
     const v = input.value;
+    // A half-typed date reads as empty; keep the saved date rather than clearing it.
+    if (!v && input.validity && input.validity.badInput) { if (final) input.value = last; return; }
     if (v === last) return;
     if (v && yearOf(v) < 1000) return; // still typing the year
     if (v && yearOf(v) < minYear) {
@@ -35,8 +39,11 @@ export function bindDateCommit(input, commit, { minYear = 1000 } = {}) {
     last = v;
     commit(v);
   };
-  input.addEventListener('change', () => attempt(false));
-  input.addEventListener('blur', () => attempt(true));
+  // Chrome can report the box as not focused while it moves between day, month and year,
+  // so focus is tracked here rather than read from document.activeElement.
+  input.addEventListener('focus', () => { focused = true; });
+  input.addEventListener('change', () => { if (!focused) attempt(true); });
+  input.addEventListener('blur', () => { focused = false; attempt(true); });
   input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); attempt(true); } });
 }
 

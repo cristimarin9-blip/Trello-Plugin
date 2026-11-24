@@ -37,7 +37,7 @@ async function load() {
       crm: crm || {},
       company: enabled.company ? company : null,
       priority: enabled.priority ? priority : null,
-      tracks: enabled.crm ? summarize(crm, company) : []
+      tracks: enabled.crm ? summarize(crm, company, c.name) : []
     };
   }).filter((r) => r.tracks.length || r.company);
   update();
@@ -46,7 +46,9 @@ async function load() {
 function cell(r, key) {
   const s = r.tracks.find((x) => x.key === key);
   if (!s) return el('td', { class: 'muted' }, '—');
-  return el('td', {}, el('span', { class: `pill ${s.color || 'light-gray'}` }, s.stage), s.due ? el('div', {}, el('small', { class: 'muted' }, `due ${formatDate(s.due, { year: undefined })}`)) : null);
+  return el('td', {}, el('span', { class: `pill ${s.color || 'light-gray'}` }, s.stage),
+    s.changed ? el('div', {}, el('small', { class: 'muted' }, `since ${formatDate(s.changed, { year: undefined })}`)) : null,
+    s.due ? el('div', {}, el('small', { class: 'muted' }, `due ${formatDate(s.due, { year: undefined })}`)) : null);
 }
 
 function visible() {
@@ -82,12 +84,14 @@ function update() {
 }
 
 function exportCsv() {
-  const head = ['Card', 'List', ...TRACK_ORDER.map((k) => `${TRACKS[k].label} stage`), ...TRACK_ORDER.map((k) => `${TRACKS[k].label} deadline`), 'Company number', 'Company name', 'Accounts due', 'Confirmation statement due', 'Priority'];
+  const head = ['Card', 'List', 'Period end', ...TRACK_ORDER.map((k) => `${TRACKS[k].label} stage`), ...TRACK_ORDER.map((k) => `${TRACKS[k].label} stage changed`), ...TRACK_ORDER.map((k) => `${TRACKS[k].label} deadline`), 'Company number', 'Company name', 'Accounts due', 'Confirmation statement due', 'Priority'];
   const lines = [head];
   for (const r of visible()) {
     const stage = (k) => { const s = r.tracks.find((x) => x.key === k); return s ? s.stage : ''; };
     const due = (k) => { const s = r.tracks.find((x) => x.key === k); return s && s.due ? s.due : ''; };
-    lines.push([r.card.name, r.list, ...TRACK_ORDER.map(stage), ...TRACK_ORDER.map(due), r.company ? r.company.number : '', r.company ? r.company.name : '', r.company ? r.company.accountsDue || '' : '', r.company ? r.company.csDue || '' : '', r.priority || '']);
+    const changed = (k) => { const s = r.tracks.find((x) => x.key === k); return s && s.changed ? s.changed : ''; };
+    const period = (r.tracks.find((x) => x.period) || {}).period || '';
+    lines.push([r.card.name, r.list, period, ...TRACK_ORDER.map(stage), ...TRACK_ORDER.map(changed), ...TRACK_ORDER.map(due), r.company ? r.company.number : '', r.company ? r.company.name : '', r.company ? r.company.accountsDue || '' : '', r.company ? r.company.csDue || '' : '', r.priority || '']);
   }
   const csv = lines.map((row) => row.map((v) => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
   const a = el('a', { href: URL.createObjectURL(new Blob([csv], { type: 'text/csv' })), download: `client-crm-${new Date().toISOString().slice(0, 10)}.csv` });

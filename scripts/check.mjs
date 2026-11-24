@@ -222,6 +222,27 @@ assert.deepEqual(badgesFor([{ id: 'c', name: 'VAT', type: 'choice', badge: true,
   assert.equal(new Set(used.map(([, n]) => n)).size, used.length, 'each button has its own icon');
   for (const [kind, name] of used) for (const v of kind === 'boardIcon' ? ['dark', 'light'] : ['gray']) assert.ok(existsSync(`public/img/icons/${name}-${v}.svg`), `${name}-${v}.svg exists`);
 }
+{ // Period end from the card title; stage changed dates.
+  const C = await import('../public/js/features/crm.js');
+  const cases = {
+    'Flexible Learning Tuition Ltd - ACC YE31.08.26': '2026-08-31',
+    'Garrison Land - VAT QE 30/06/2026': '2026-06-30',
+    'Year end 31 Aug 2026': '2026-08-31',
+    'Acme (02.01.25) YE 31.03.26': '2026-03-31',
+    'Acme PE: 5-4-27': '2027-04-05',
+    'No date here': null,
+    'Acme 2026 accounts': null,
+    'Bad 31.02.26': null
+  };
+  for (const [title, want] of Object.entries(cases)) assert.equal(C.periodFromTitle(title), want, title);
+  assert.equal(C.periodOf({ period: '2025-03-31' }, 'Acme YE31.08.26'), '2026-08-31', 'the title wins');
+  assert.equal(C.periodOf({ period: '2025-03-31' }, 'Acme'), '2025-03-31', 'older saved period is the fallback');
+  const s = C.summarize({ vat: { on: true, stage: 'In progress', changed: '2026-11-20' } }, null, 'Client - VAT QE 30.09.26');
+  assert.equal(s[0].period, '2026-09-30');
+  assert.equal(s[0].due, '2026-11-07');
+  assert.equal(s[0].changed, '2026-11-20');
+  assert.match(C.today(), /^\d{4}-\d{2}-\d{2}$/);
+}
 const { resolve, builtInDefaults, FEATURE_IDS } = await import('../public/js/lib/features.js');
 const d = builtInDefaults();
 assert.ok(FEATURE_IDS.every((id) => d[id] === true));

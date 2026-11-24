@@ -152,26 +152,45 @@ await visit('/views/card-back.html', true, async (page, errors) => {
   if ((await page.locator('#tab-body .panel').count()) !== 2) errors.push('Ctrl-click should add a second panel');
   await page.evaluate(() => localStorage.removeItem('keel:card-panels'));
   await page.locator('.tab-tool', { hasText: 'One tab' }).click();
-  // Period end: typing the year key by key keeps every digit; years before 2020 are refused.
+  // Client stages: changing the stage records today's date; the date can be typed key by key
+  // (every digit kept) and must be 2020 or later; the period end comes from the card title.
   await page.locator('.tabs button.tab', { hasText: 'Client stages' }).click();
   await page.waitForTimeout(300);
-  const vat = page.locator('input[aria-label="VAT return period end"]');
-  if ((await vat.getAttribute('min')) !== '2020-01-01') errors.push('period end should not allow dates before 2020');
-  await vat.click();
-  await vat.press('Control+a').catch(() => {});
-  await page.keyboard.press('Backspace'); await page.keyboard.press('Tab'); await page.keyboard.press('Shift+Tab');
-  await vat.focus();
+  if (await page.locator('input[aria-label="VAT return period end"]').count()) errors.push('the period end box should be gone');
+  if (!/Period end: .*saved earlier/.test(await page.locator('#tab-body').textContent())) errors.push('should explain where the period end comes from');
+  await page.locator('select[aria-label="VAT return stage"]').selectOption('Review');
+  await page.waitForTimeout(300);
+  const todayIso = await page.evaluate(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; });
+  let crmNow = await page.evaluate(() => window.__makeT().get('card', 'shared', 'crm'));
+  if (crmNow.vat.stage !== 'Review' || crmNow.vat.changed !== todayIso) errors.push(`stage change not dated: ${JSON.stringify(crmNow.vat)}`);
+  if ((await page.locator('input[aria-label="VAT return stage changed"]').inputValue()) !== todayIso) errors.push('stage changed box should show today');
+  await page.locator('.track', { hasText: 'VAT return' }).locator('button', { hasText: 'Next stage' }).click();
+  await page.waitForTimeout(300);
+  crmNow = await page.evaluate(() => window.__makeT().get('card', 'shared', 'crm'));
+  if (crmNow.vat.stage !== 'Sent for approval') errors.push(`Next stage did not move on: ${crmNow.vat.stage}`);
+  const changedBox = page.locator('input[aria-label="VAT return stage changed"]');
+  if ((await changedBox.getAttribute('min')) !== '2020-01-01') errors.push('stage changed date should not allow dates before 2020');
+  await changedBox.focus();
   for (const k of '09302026') { await page.keyboard.type(k); await page.waitForTimeout(80); }
-  await page.waitForTimeout(700);
-  const crm = await page.evaluate(() => window.__makeT().get('card', 'shared', 'crm'));
-  console.log(`  period end typed key by key: ${crm.vat.period}`);
-  if (crm.vat.period !== '2026-09-30') errors.push(`typing the year lost digits: saved ${crm.vat.period}`);
-  const vat2 = page.locator('input[aria-label="VAT return period end"]');
-  await vat2.fill('2019-03-31');
-  await vat2.press('Enter');
-  await page.waitForTimeout(700);
-  const crm2 = await page.evaluate(() => window.__makeT().get('card', 'shared', 'crm'));
-  if (crm2.vat.period !== '2026-09-30') errors.push(`a 2019 period end should be refused, saved ${crm2.vat.period}`);
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(400);
+  crmNow = await page.evaluate(() => window.__makeT().get('card', 'shared', 'crm'));
+  console.log(`  stage changed typed key by key: ${crmNow.vat.changed}`);
+  if (crmNow.vat.changed !== '2026-09-30') errors.push(`typing the year lost digits: saved ${crmNow.vat.changed}`);
+  const box2 = page.locator('input[aria-label="VAT return stage changed"]');
+  await box2.fill('2019-03-31');
+  await box2.press('Enter');
+  await page.waitForTimeout(400);
+  crmNow = await page.evaluate(() => window.__makeT().get('card', 'shared', 'crm'));
+  if (crmNow.vat.changed !== '2026-09-30') errors.push(`a 2019 date should be refused, saved ${crmNow.vat.changed}`);
+  // Leaving a half-typed date keeps the saved one.
+  const box3 = page.locator('input[aria-label="VAT return stage changed"]');
+  await box3.focus();
+  await page.keyboard.type('0');
+  await page.keyboard.press('Tab');
+  await page.waitForTimeout(400);
+  crmNow = await page.evaluate(() => window.__makeT().get('card', 'shared', 'crm'));
+  if (crmNow.vat.changed !== '2026-09-30') errors.push(`a half-typed date should not clear the saved one, saved ${crmNow.vat.changed}`);
 });
 // Company tab: search by name, pick a result, snapshot is saved; a pre-search worker gives a clear message.
 const PROXY = 'https://proxy.test';
@@ -331,7 +350,7 @@ const F = () => Object.fromEntries(store.boards.b1.fields.map((f) => [f.name, f]
   await page.locator('.segmented button', { hasText: 'Non-VAT' }).click();
   await page.waitForTimeout(200);
   await page.locator('input[aria-label="Year end"]').fill('2026-08-31');
-  await page.locator('input[aria-label="Year end"]').dispatchEvent('change');
+  await page.locator('input[aria-label="Year end"]').press('Enter');
   await page.waitForTimeout(200);
   if (!(await page.locator('.ftabs button', { hasText: 'Accounts Schedules' }).count())) p.errors.push('section tab missing on the card');
   if (!(await page.locator('.fcell.missing', { hasText: 'Debtors' }).count())) p.errors.push('required empty field not marked');
@@ -501,7 +520,8 @@ const F = () => Object.fromEntries(store.boards.b1.fields.map((f) => [f.name, f]
           const type = await inp.getAttribute('type');
           const inputs = { time: ['10:15', '10:15'], 'datetime-local': ['2026-12-01T10:15', 'iso'], month: ['2026-12', '2026-12-01'], number: ['2027', '2027-01-01'], date: ['2026-12-01', '2026-12-01'] };
           const [raw, want] = inputs[type];
-          await inp.fill(raw); await inp.dispatchEvent('change');
+          await inp.fill(raw);
+          if (['date', 'datetime-local', 'month'].includes(type)) await inp.press('Enter'); else await inp.dispatchEvent('change');
           expect = want;
           break;
         }
