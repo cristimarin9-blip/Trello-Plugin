@@ -109,7 +109,7 @@ Two platform facts shape most of the design:
 
 ## 18. Several tabs at once on a card
 * **Why not several Keel sections:** Trello allows one card-back section per Power-Up. A second copy of Keel registered as another Power-Up would have its own, separate storage, so it could not see Keel's data.
-* **Built:** the Keel section's **⊞ Several tabs** button turns the tab bar into tick-boxes; each ticked tab shows as its own panel, **Side by side** (columns when the card is wide enough) or **Stack**ed. **×** on a panel hides it; **✕ One tab** goes back to a single tab. Ctrl/Cmd/Shift-click on a tab adds it as a panel in one step. The choice is remembered per person (in this browser) and applies to every card.
+* **Built:** the Keel section's **⊞ Several tabs** button turns the tab bar into tick-boxes; each ticked tab shows as its own panel, one under another. **×** on a panel hides it; **✕ One tab** goes back to a single tab. Ctrl/Cmd/Shift-click on a tab adds it as a panel in one step. The choice is remembered per person (in this browser) and applies to every card.
 * **Code:** `public/js/views/card-back.js`.
 
 ## Data stored by the Power-Up

@@ -135,12 +135,11 @@ await visit('/views/card-back.html', true, async (page, errors) => {
   const panels = await page.locator('#tab-body .panel > header span').allTextContents();
   console.log(`  several tabs: ${panels.join(' | ')}`);
   if (panels.length < 3 || !panels.includes('Company') || !panels.includes('Client stages') || !panels.includes('Subtasks')) errors.push(`several tabs not shown: ${panels.join(', ')}`);
-  if (!(await page.locator('#tab-body.panels.columns').count())) errors.push('panels should start side by side');
-  if (process.env.SHOTS) { await page.setViewportSize({ width: 760, height: 900 }); await page.locator('button[aria-label="Hide ⚙ Features"]').click(); await page.waitForTimeout(200); await page.screenshot({ path: `${process.env.SHOTS}/card-several.png`, fullPage: true }); await page.locator('.tabs button.tab', { hasText: 'Features' }).click(); }
-  await page.locator('.tab-tool', { hasText: 'Stack' }).click();
-  if (!(await page.locator('#tab-body.panels.stack').count())) errors.push('stack layout not applied');
+  if (!(await page.locator('#tab-body.panels.stack').count())) errors.push('panels should be stacked');
+  if (process.env.SHOTS) { await page.setViewportSize({ width: 760, height: 900 }); await page.screenshot({ path: `${process.env.SHOTS}/card-several.png`, fullPage: true }); }
+  if (await page.locator('.tab-tool', { hasText: /Side by side|Stack/ }).count()) errors.push('there should be no side-by-side layout any more');
   const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('keel:card-panels')));
-  if (!saved.several || saved.layout !== 'stack' || saved.open.length < 3) errors.push(`panel choice not remembered: ${JSON.stringify(saved)}`);
+  if (!saved.several || saved.open.length < 3) errors.push(`panel choice not remembered: ${JSON.stringify(saved)}`);
   await page.locator('button[aria-label="Hide Subtasks"]').click();
   await page.waitForTimeout(200);
   if (await page.locator('.panel > header', { hasText: 'Subtasks' }).count()) errors.push('× did not hide the panel');
@@ -152,6 +151,27 @@ await visit('/views/card-back.html', true, async (page, errors) => {
   await page.waitForTimeout(200);
   if ((await page.locator('#tab-body .panel').count()) !== 2) errors.push('Ctrl-click should add a second panel');
   await page.evaluate(() => localStorage.removeItem('keel:card-panels'));
+  await page.locator('.tab-tool', { hasText: 'One tab' }).click();
+  // Period end: typing the year key by key keeps every digit; years before 2020 are refused.
+  await page.locator('.tabs button.tab', { hasText: 'Client stages' }).click();
+  await page.waitForTimeout(300);
+  const vat = page.locator('input[aria-label="VAT return period end"]');
+  if ((await vat.getAttribute('min')) !== '2020-01-01') errors.push('period end should not allow dates before 2020');
+  await vat.click();
+  await vat.press('Control+a').catch(() => {});
+  await page.keyboard.press('Backspace'); await page.keyboard.press('Tab'); await page.keyboard.press('Shift+Tab');
+  await vat.focus();
+  for (const k of '09302026') { await page.keyboard.type(k); await page.waitForTimeout(80); }
+  await page.waitForTimeout(700);
+  const crm = await page.evaluate(() => window.__makeT().get('card', 'shared', 'crm'));
+  console.log(`  period end typed key by key: ${crm.vat.period}`);
+  if (crm.vat.period !== '2026-09-30') errors.push(`typing the year lost digits: saved ${crm.vat.period}`);
+  const vat2 = page.locator('input[aria-label="VAT return period end"]');
+  await vat2.fill('2019-03-31');
+  await vat2.press('Enter');
+  await page.waitForTimeout(700);
+  const crm2 = await page.evaluate(() => window.__makeT().get('card', 'shared', 'crm'));
+  if (crm2.vat.period !== '2026-09-30') errors.push(`a 2019 period end should be refused, saved ${crm2.vat.period}`);
 });
 // Company tab: search by name, pick a result, snapshot is saved; a pre-search worker gives a clear message.
 const PROXY = 'https://proxy.test';

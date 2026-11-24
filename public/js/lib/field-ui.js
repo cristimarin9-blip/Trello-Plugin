@@ -3,7 +3,7 @@
 // gallery in Manage fields, and inline editing in the table.
 import { TYPES, isLayout, isComputed, isEmpty, optionOf, visibleFields, renderNotes, formatValue, progressBar, emptyContext, SAMPLE_MEMBER, SAMPLE_CARD } from './fields.js';
 import { RATING_STYLES, TOGGLE_STYLES, DATE_FORMATS, numberFormatOf, formatNumberValue, scaleColor, dateKind, toDate, dayOf, dateColor, parseDuration, formatDuration } from './field-styles.js';
-import { el, clear, deadlineColor } from './util.js';
+import { el, clear, deadlineColor, bindDateCommit } from './util.js';
 
 const pad = (n) => String(n).padStart(2, '0');
 
@@ -133,8 +133,12 @@ export function editorFor(field, value, commit, options = {}) {
         const kind = dateKind(field);
         const type = kind === 'time' ? 'time' : kind === 'datetime' ? 'datetime-local' : field.format === 'monthYearShort' ? 'month' : field.format === 'yearOnly' ? 'number' : 'date';
         const inp = el('input', { type, value: dateInputValue(field, cur), disabled: readOnly, 'aria-label': field.name, min: type === 'number' ? '1900' : null, max: type === 'number' ? '2200' : null, placeholder: type === 'number' ? 'Year' : null });
-        inp.onchange = () => save(dateFromInput(field, inp.value));
-        inp.onkeydown = (e) => { if (e.key === 'Enter') inp.blur(); };
+        if (type === 'date' || type === 'datetime-local' || type === 'month') {
+          bindDateCommit(inp, (v) => save(dateFromInput(field, v)));
+        } else {
+          inp.onchange = () => save(dateFromInput(field, inp.value));
+          inp.onkeydown = (e) => { if (e.key === 'Enter') inp.blur(); };
+        }
         const row = el('div', { class: 'row nowrap' }, el('div', { class: 'grow' }, inp));
         const day = dayOf(field, cur);
         if (cur) row.append(el('small', { class: 'muted date-shown' }, formatValue(field, cur)));

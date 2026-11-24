@@ -10,6 +10,36 @@ export function viewUrl(name) {
   return new URL(`../../views/${name}`, import.meta.url).href;
 }
 
+/**
+ * Save a date / date-time / month <input> only once the date is complete. Browsers report
+ * a date as soon as it is valid, so typing the year 2026 one digit at a time gives 0002,
+ * 0020, 0202 and then 2026; saving (and redrawing) on the first of those throws away the
+ * rest of the typing. This waits for a four-digit year and, with `minYear`, refuses
+ * earlier years. Clearing the box saves an empty value.
+ */
+export function bindDateCommit(input, commit, { minYear = 1000 } = {}) {
+  let last = input.value;
+  const yearOf = (v) => Number(String(v).slice(0, 4)) || 0;
+  if (minYear > 1000 && (input.type === 'date' || input.type === 'month' || input.type === 'datetime-local')) {
+    input.min = input.type === 'month' ? `${minYear}-01` : input.type === 'date' ? `${minYear}-01-01` : `${minYear}-01-01T00:00`;
+  }
+  const attempt = (final) => {
+    const v = input.value;
+    if (v === last) return;
+    if (v && yearOf(v) < 1000) return; // still typing the year
+    if (v && yearOf(v) < minYear) {
+      if (final) { input.setCustomValidity(`Use a year from ${minYear} onwards`); input.reportValidity(); }
+      return;
+    }
+    input.setCustomValidity('');
+    last = v;
+    commit(v);
+  };
+  input.addEventListener('change', () => attempt(false));
+  input.addEventListener('blur', () => attempt(true));
+  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); attempt(true); } });
+}
+
 export function uid() {
   return Math.random().toString(36).slice(2, 10);
 }

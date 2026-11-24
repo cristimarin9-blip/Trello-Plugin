@@ -2,7 +2,7 @@
 import { KEYS } from '../config.js';
 import { get, set } from '../lib/storage.js';
 import { TRACKS, TRACK_ORDER, stageColor } from '../features/crm.js';
-import { el, formatDate, daysUntil, toDateInput, setStatus } from '../lib/util.js';
+import { el, formatDate, daysUntil, toDateInput, setStatus, bindDateCommit } from '../lib/util.js';
 
 export default {
   id: 'crm',
@@ -31,7 +31,9 @@ export default {
         const color = stageColor(key, track, company);
         const stageSelect = el('select', { onchange: () => { track.stage = stageSelect.value; save(); ctx.refresh(); } },
           def.stages.map((s) => el('option', { value: s, selected: s === track.stage }, s)));
-        const period = el('input', { type: 'date', value: toDateInput(track.period), onchange: () => { track.period = period.value; save(); ctx.refresh(); } });
+        const period = el('input', { type: 'date', value: toDateInput(track.period), 'aria-label': `${def.label} period end` });
+        // Period ends are 2020 or later; saving waits until the four-digit year is typed.
+        bindDateCommit(period, (v) => { track.period = v; save(); ctx.refresh(); }, { minYear: 2020 });
         const note = el('input', { type: 'text', maxlength: '80', placeholder: 'Short note (optional)', value: track.note || '', onchange: () => { track.note = note.value; save(); } });
         const idx = def.stages.indexOf(track.stage);
         const next = el('button', { class: 'small', disabled: idx >= def.stages.length - 1, onclick: () => { track.stage = def.stages[idx + 1]; save(); ctx.refresh(); } }, 'Next stage →');

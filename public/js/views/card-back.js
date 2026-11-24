@@ -1,7 +1,7 @@
 // The Keel section on the card back. Trello gives each Power-Up one section per card,
 // so instead of several Keel sections this one can show several tabs at once:
 // "Several tabs" turns the tab bar into toggles and shows each chosen tab as a panel,
-// side by side or stacked. Ctrl/Cmd/Shift-click a tab does the same in one step.
+// one under another. Ctrl/Cmd/Shift-click a tab does the same in one step.
 import { initIframe, fit } from '../lib/iframe.js';
 import { cardFeatures } from '../lib/features.js';
 import { el, clear, byId } from '../lib/util.js';
@@ -21,9 +21,9 @@ const app = byId('app');
 const STATE_KEY = 'keel:card-panels';
 const OLD_TAB_KEY = 'practice-powerup:last-tab';
 
-// Per person (this browser), the same on every card: { several, layout, open: [tabId] }.
+// Per person (this browser), the same on every card: { several, open: [tabId] }.
 const state = (() => {
-  const fallback = { several: false, layout: 'columns', open: [] };
+  const fallback = { several: false, open: [] };
   try {
     const saved = JSON.parse(localStorage.getItem(STATE_KEY) || 'null');
     if (saved && Array.isArray(saved.open)) return { ...fallback, ...saved };
@@ -83,11 +83,6 @@ function renderNav() {
     }, state.several ? el('span', { class: 'tab-check', 'aria-hidden': 'true' }, on ? '☑' : '☐') : null, tab.label));
   }
   nav.append(el('span', { class: 'grow' }));
-  if (state.several) {
-    nav.append(el('button', { class: 'tab-tool', title: state.layout === 'columns' ? 'Show panels one under another' : 'Show panels side by side',
-      onclick: () => { state.layout = state.layout === 'columns' ? 'stack' : 'columns'; persist(); renderNav(); renderBody(); } },
-    state.layout === 'columns' ? '☰ Stack' : '▥ Side by side'));
-  }
   nav.append(el('button', { class: `tab-tool${state.several ? ' on' : ''}`, 'aria-pressed': String(state.several), title: 'Show several Keel tabs at the same time',
     onclick: () => setSeveral(!state.several) }, state.several ? '✕ One tab' : '⊞ Several tabs'));
 }
@@ -109,7 +104,7 @@ async function renderBody() {
     body.append(root);
     await renderTab(tabs[0] || visible[0], root);
   } else {
-    body.className = `panels ${state.layout === 'stack' ? 'stack' : 'columns'}`;
+    body.className = 'panels stack';
     await Promise.all(tabs.map((tab) => {
       const root = el('div', { class: 'panel-body' });
       body.append(el('section', { class: 'panel', 'aria-label': tab.label },
