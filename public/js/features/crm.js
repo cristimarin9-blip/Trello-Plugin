@@ -1,4 +1,5 @@
 // Feature: accountancy client stage tracker (bookkeeping, accounts, VAT, PAYE).
+import { boardIcon } from '../lib/icons.js';
 import { KEYS } from '../config.js';
 import { get, getSettings } from '../lib/storage.js';
 import { shownBadges } from '../lib/deadline-badges.js';
@@ -79,7 +80,7 @@ export async function cardDetailBadges(t, enabled) {
 
 export function boardButtons(icon) {
   return [{
-    icon,
+    icon: boardIcon('crm'),
     text: 'Client CRM',
     condition: 'always',
     callback: (t) => t.modal({ title: 'Client CRM — stages at a glance', url: viewUrl('crm-board.html'), fullscreen: false, height: 640 })

@@ -211,6 +211,17 @@ assert.deepEqual(badgesFor([{ id: 'c', name: 'VAT', type: 'choice', badge: true,
   assert.equal(FL.computedValue({ type: 'checklist', checklist: 'payroll' }, 'c'.repeat(24), lists), null);
   assert.equal(FL.createdAt('5f8d0d55b54764421b7156c3').slice(0, 10), '2020-10-19');
 }
+{ // Every icon a button refers to exists, in each colour, and buttons do not share icons.
+  const { readFileSync, existsSync } = await import('node:fs');
+  const used = [];
+  for (const f of ['audit', 'bulk', 'crm', 'fields', 'relationships', 'routines', 'scheduler']) {
+    const src = readFileSync(`public/js/features/${f}.js`, 'utf8');
+    for (const m of src.matchAll(/(boardIcon|cardIcon)\('([a-z-]+)'\)/g)) used.push([m[1], m[2]]);
+  }
+  assert.equal(used.length, 9, 'five board buttons and four card buttons have icons');
+  assert.equal(new Set(used.map(([, n]) => n)).size, used.length, 'each button has its own icon');
+  for (const [kind, name] of used) for (const v of kind === 'boardIcon' ? ['dark', 'light'] : ['gray']) assert.ok(existsSync(`public/img/icons/${name}-${v}.svg`), `${name}-${v}.svg exists`);
+}
 const { resolve, builtInDefaults, FEATURE_IDS } = await import('../public/js/lib/features.js');
 const d = builtInDefaults();
 assert.ok(FEATURE_IDS.every((id) => d[id] === true));

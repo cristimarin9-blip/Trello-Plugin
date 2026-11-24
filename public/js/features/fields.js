@@ -1,6 +1,7 @@
 // Feature: custom fields — card-front badges and the "Fields" board button.
 // Editing happens in the card-back "Fields" tab (js/tabs/fields.js) and the board
 // modal (js/views/fields-board.js).
+import { boardIcon } from '../lib/icons.js';
 import { viewUrl } from '../lib/util.js';
 import { badgesFor, cachedBoard, isComputed, boardChecklists, emptyContext } from '../lib/fields.js';
 
@@ -42,5 +43,5 @@ export function openBoard(t, tab = 'table') {
 }
 
 export function boardButtons(icon) {
-  return [{ icon, text: 'Fields', condition: 'always', callback: (t) => openBoard(t) }];
+  return [{ icon: boardIcon('fields'), text: 'Fields', condition: 'always', callback: (t) => openBoard(t) }];
 }

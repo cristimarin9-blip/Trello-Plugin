@@ -1,4 +1,5 @@
 // Feature: parent task card <-> subtask cards.
+import { cardIcon } from '../lib/icons.js';
 import { KEYS } from '../config.js';
 import { get } from '../lib/storage.js';
 import { truncate, viewUrl } from '../lib/util.js';
@@ -33,7 +34,7 @@ export async function cardDetailBadges(t, enabled) {
 export function cardButtons(iconUrl, enabled) {
   if (enabled && !enabled.subtasks) return [];
   return [{
-    icon: iconUrl,
+    icon: cardIcon('subtasks'),
     text: 'Subtasks',
     callback: (t) => t.popup({ title: 'Subtasks & parent', url: viewUrl('relationships.html'), height: 260 })
   }];
