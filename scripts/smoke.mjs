@@ -513,6 +513,28 @@ const F = () => Object.fromEntries(store.boards.b1.fields.map((f) => [f.name, f]
   await done(gp, 'fields: gallery + editor for every type');
 }
 
+{ // Sign-in runs in a modal that stays open; the callback page explains a lost opener.
+  const p = await fieldsPage('/views/settings.html');
+  await p.page.evaluate(() => { window.__token = null; return window.__render(); });
+  await p.page.locator('button', { hasText: /^Authorise/ }).first().click();
+  const opened = await p.page.evaluate(async () => { const o = window.__lastModal; return o ? { url: o.url, status: (await fetch(o.url)).status } : null; });
+  if (!opened || !opened.url.endsWith('/views/authorize.html') || opened.status !== 200) p.errors.push(`settings Authorise should open the authorise modal: ${JSON.stringify(opened)}`);
+  await done(p, 'auth: settings opens the authorise modal');
+
+  const a = await fieldsPage('/views/authorize.html');
+  await a.page.evaluate(() => { window.__token = null; return window.__render(); });
+  if ((await a.page.locator('.auth-steps li').count()) !== 3) a.errors.push('authorise steps missing');
+  await a.page.locator('button.primary', { hasText: 'Authorise' }).click();
+  await a.page.locator('.auth-ok').waitFor();
+  await done(a, 'auth: authorise modal completes');
+
+  const c = await fieldsPage('/views/oauth-callback.html?state=somestate&code=x');
+  await c.page.waitForTimeout(300);
+  const text = await c.page.locator('#app').textContent();
+  if (!/Sign-in did not finish/.test(text) || !/Keep|keep/.test(text)) c.errors.push(`callback without an opener should explain what to do: ${text.slice(0, 120)}`);
+  await done(c, 'auth: callback explains a closed Keel window');
+}
+
 { // Without authorisation the tab asks for it instead of failing.
   const page = await context.newPage();
   const errors = [];

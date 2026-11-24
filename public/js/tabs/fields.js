@@ -2,14 +2,12 @@
 import { api, visibleFields, isLayout, isComputed, markCardChanged, NeedsAuthError, TYPES, loadContext, valuesWithComputed } from '../lib/fields.js';
 import { renderForm, groupFields, typeIcon } from '../lib/field-ui.js';
 import { openBoard } from '../features/fields.js';
-import { authorize } from '../lib/trello-api.js';
+import { openAuthorize } from '../features/settings.js';
 import { el, clear, setStatus } from '../lib/util.js';
 
 function needsAuth(root, t, ctx) {
   root.append(el('p', {}, 'Fields are stored by Keel, so Keel needs your permission first.'),
-    el('button', { class: 'primary', onclick: async () => {
-      try { await authorize(t); ctx.refresh(); } catch (err) { setStatus(err.message || 'Authorisation cancelled', 'error'); }
-    } }, 'Authorise'));
+    el('button', { class: 'primary', onclick: () => openAuthorize(t, () => ctx.refresh()) }, 'Authorise'));
 }
 
 // Remembers the open section tab while the card stays open.

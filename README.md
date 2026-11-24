@@ -181,6 +181,7 @@ Now open a client card → **Company** tab → type the company number and click
 | Power-Up not in the **Custom** tab | Board is not in the workspace chosen in the admin portal |
 | No buttons/badges after adding | Capabilities not ticked (step 4), or Trello cache — hard refresh |
 | "Authorise" popup shows an error or never closes | Callback URL in the OAuth 2.0 tab does not match `.../views/oauth-callback.html` exactly, the OAuth 2.0 settings were not saved, or `OAUTH_CLIENT_ID` is still the placeholder (step 3) |
+| "Authorisation could not be completed: Failed to call opener.authorize()" | The Keel window that started sign-in closed before the sign-in window came back. Sign-in now runs in a Keel window that stays open: Power-Up gear → Settings → Authorise → **Authorise**, click **Allow**, and keep the Keel window open until the sign-in window closes by itself |
 | Authorised on one board but not another | OAuth 2.0 tokens for Power-Ups are per workspace; authorise again on a board in the other workspace |
 | Checklist / History tab says "Authorise…" | That browser has not authorised yet — Power-Up gear → Settings → Authorise |
 | Fields tab says "Trello did not allow access" | Authorise again (Power-Up settings → Authorise); the person must be able to open the card in Trello |

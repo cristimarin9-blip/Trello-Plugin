@@ -12,8 +12,17 @@ export async function authorizationStatus(t) {
   return { authorized: await isAuthorized(t) };
 }
 
+/**
+ * Sign-in runs in a modal, not a popover: Trello closes popovers when focus moves to
+ * the sign-in window, and the result would then have nowhere to go.
+ * `onClose` runs when the modal closes (e.g. to refresh the page that asked).
+ */
+export function openAuthorize(t, onClose) {
+  return t.modal({ title: 'Authorise Keel', url: viewUrl('authorize.html'), fullscreen: false, height: 340, callback: onClose ? () => onClose() : undefined });
+}
+
 export function showAuthorization(t) {
-  return t.popup({ title: 'Authorise Trello access', url: viewUrl('authorize.html'), height: 180 });
+  return openAuthorize(t);
 }
 
 export async function removeData(t) {

@@ -1,7 +1,7 @@
 // Board modal for Fields: Table view, Add/edit fields, and Import.
 import { initIframe } from '../lib/iframe.js';
 import { api, NeedsAuthError, loadContext } from '../lib/fields.js';
-import { authorize } from '../lib/trello-api.js';
+import { openAuthorize } from '../features/settings.js';
 import { byId, clear, el, setStatus } from '../lib/util.js';
 import { drawManage } from './fields-manage.js';
 import { drawTable } from './fields-table.js';
@@ -60,7 +60,8 @@ async function render() {
   } catch (err) {
     if (err instanceof NeedsAuthError) {
       body.append(el('div', { class: 'empty-state' }, el('p', {}, 'Fields are stored by Keel, so Keel needs your permission first.'),
-        el('button', { class: 'primary', onclick: async () => { try { await authorize(t); ctx.board = null; render(); } catch (e) { setStatus(e.message || 'Cancelled', 'error'); } } }, 'Authorise')));
+        el('button', { class: 'primary', onclick: () => openAuthorize(t) }, 'Authorise'),
+        el('p', { class: 'muted' }, el('small', {}, 'After authorising, open Fields again.'))));
     } else {
       body.append(el('p', { class: 'status error' }, err.message || String(err)));
     }

@@ -276,3 +276,4 @@ tr.clickable:hover td { background: var(--bg-soft); }
 .cardid { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-weight: 600; }
 .date-shown, .num-shown { white-space: nowrap; }
 .ftable td.computed { color: var(--text); background: #fafbfc; cursor: default; }
+.auth-steps { margin: 6px 0 10px; padding-left: 20px; } .auth-steps li { margin: 3px 0; } .auth-ok { font-size: 15px; font-weight: 600; color: #216e4e; }

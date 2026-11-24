@@ -3,7 +3,8 @@ import { initIframe, fit } from '../lib/iframe.js';
 import { set, getSettings, getAllShared } from '../lib/storage.js';
 import { FEATURES, boardDefaults } from '../lib/features.js';
 import { DEADLINE_BADGES, shownBadges } from '../lib/deadline-badges.js';
-import { authorize, isAuthorized, isConfigured } from '../lib/trello-api.js';
+import { isAuthorized, isConfigured } from '../lib/trello-api.js';
+import { openAuthorize } from '../features/settings.js';
 import { byId, clear, el, jsonSize, setStatus } from '../lib/util.js';
 
 const t = initIframe();
@@ -19,7 +20,7 @@ async function render() {
   } else {
     app.append(el('p', { class: 'row between' },
       el('span', {}, authed ? '✅ Authorised for this workspace' : '⚠️ Not authorised'),
-      el('button', { class: authed ? 'small' : 'primary small', onclick: async () => { try { await authorize(t); render(); } catch (err) { setStatus(err.message || 'Cancelled', 'error'); } } }, authed ? 'Authorise again' : 'Authorise')));
+      el('button', { class: authed ? 'small' : 'primary small', onclick: () => openAuthorize(t) }, authed ? 'Authorise again' : 'Authorise')));
   }
 
   app.append(el('h3', {}, 'Companies House'));
