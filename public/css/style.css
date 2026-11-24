@@ -277,3 +277,17 @@ tr.clickable:hover td { background: var(--bg-soft); }
 .date-shown, .num-shown { white-space: nowrap; }
 .ftable td.computed { color: var(--text); background: #fafbfc; cursor: default; }
 .auth-steps { margin: 6px 0 10px; padding-left: 20px; } .auth-steps li { margin: 3px 0; } .auth-ok { font-size: 15px; font-weight: 600; color: #216e4e; }
+
+/* Card section: several tabs at once */
+.card-tabs { align-items: center; flex-wrap: wrap; overflow: visible; row-gap: 2px; }
+.card-tabs .tab.multi { color: var(--muted); }
+.card-tabs .tab.multi.active { color: var(--blue); }
+.tab-check { margin-right: 4px; font-size: 12px; }
+.tab-tool { background: none; padding: 4px 8px; font-size: 12px; color: var(--muted); white-space: nowrap; border-radius: 3px; }
+.tab-tool:hover { background: #091e4214; color: var(--text); }
+.tab-tool.on { color: var(--blue); }
+.panels.columns { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 10px; align-items: start; }
+.panels.stack { display: flex; flex-direction: column; gap: 10px; }
+.panel { border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px 10px; min-width: 0; background: #fff; }
+.panel > header { display: flex; justify-content: space-between; align-items: center; margin: -2px 0 6px; padding-bottom: 4px; border-bottom: 1px solid var(--border); font-size: 12px; font-weight: 700; color: var(--blue); text-transform: uppercase; letter-spacing: .03em; }
+.panel-body { min-width: 0; }

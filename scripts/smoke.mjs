@@ -117,15 +117,41 @@ await visit('/index.html', false, async (page, errors) => {
   console.log('  sorter:', JSON.stringify(result['list-sorters']));
 });
 
-await visit('/views/card-back.html', true, async (page) => {
-  const count = await page.locator('.tabs button').count();
+await visit('/views/card-back.html', true, async (page, errors) => {
+  const count = await page.locator('.tabs button.tab').count();
   for (let i = 0; i < count; i += 1) {
-    await page.locator('.tabs button').nth(i).click();
+    await page.locator('.tabs button.tab').nth(i).click();
     await page.waitForTimeout(300);
-    const label = await page.locator('.tabs button').nth(i).textContent();
+    const label = await page.locator('.tabs button.tab').nth(i).textContent();
     const body = (await page.locator('#tab-body').textContent()).trim().replace(/\s+/g, ' ').slice(0, 70);
     console.log(`  tab ${label}: ${body}`);
   }
+  // Several tabs at once: toggle mode, pick three, switch layout, remember it, go back to one.
+  await page.locator('.tab-tool', { hasText: 'Several tabs' }).click();
+  await page.locator('.tabs button.tab', { hasText: 'Company' }).click();
+  await page.locator('.tabs button.tab', { hasText: 'Client stages' }).click();
+  await page.locator('.tabs button.tab', { hasText: 'Subtasks' }).click();
+  await page.waitForTimeout(300);
+  const panels = await page.locator('#tab-body .panel > header span').allTextContents();
+  console.log(`  several tabs: ${panels.join(' | ')}`);
+  if (panels.length < 3 || !panels.includes('Company') || !panels.includes('Client stages') || !panels.includes('Subtasks')) errors.push(`several tabs not shown: ${panels.join(', ')}`);
+  if (!(await page.locator('#tab-body.panels.columns').count())) errors.push('panels should start side by side');
+  if (process.env.SHOTS) { await page.setViewportSize({ width: 760, height: 900 }); await page.locator('button[aria-label="Hide ⚙ Features"]').click(); await page.waitForTimeout(200); await page.screenshot({ path: `${process.env.SHOTS}/card-several.png`, fullPage: true }); await page.locator('.tabs button.tab', { hasText: 'Features' }).click(); }
+  await page.locator('.tab-tool', { hasText: 'Stack' }).click();
+  if (!(await page.locator('#tab-body.panels.stack').count())) errors.push('stack layout not applied');
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('keel:card-panels')));
+  if (!saved.several || saved.layout !== 'stack' || saved.open.length < 3) errors.push(`panel choice not remembered: ${JSON.stringify(saved)}`);
+  await page.locator('button[aria-label="Hide Subtasks"]').click();
+  await page.waitForTimeout(200);
+  if (await page.locator('.panel > header', { hasText: 'Subtasks' }).count()) errors.push('× did not hide the panel');
+  await page.locator('.tab-tool', { hasText: 'One tab' }).click();
+  await page.waitForTimeout(200);
+  if (await page.locator('#tab-body .panel').count()) errors.push('one-tab mode still shows panels');
+  // Ctrl-click adds a panel straight away.
+  await page.locator('.tabs button.tab', { hasText: 'Who viewed' }).click({ modifiers: ['Control'] });
+  await page.waitForTimeout(200);
+  if ((await page.locator('#tab-body .panel').count()) !== 2) errors.push('Ctrl-click should add a second panel');
+  await page.evaluate(() => localStorage.removeItem('keel:card-panels'));
 });
 // Company tab: search by name, pick a result, snapshot is saved; a pre-search worker gives a clear message.
 const PROXY = 'https://proxy.test';
