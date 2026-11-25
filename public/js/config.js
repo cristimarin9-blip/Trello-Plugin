@@ -35,7 +35,9 @@ export const KEYS = {
   routines: 'routines',      // board/shared : [{ id, name, steps: [] }]
   audit: 'audit',            // board/shared : member activity on this board
   settings: 'settings',      // board/shared : { chProxyUrl, cardBadges: { badgeId: bool }, defaults: { featureId: bool } }
-  scheduleLog: 'scheduleLog' // board/shared : last executed scheduled actions
+  scheduleLog: 'scheduleLog', // board/shared : last executed scheduled actions
+  handover: 'handover',      // card/shared  : handover note printed by Print / handover (≤1000 chars)
+  printLayout: 'printLayout' // board/shared : default print layout (compact)
 };
 
 // Trello limits each (scope, visibility) bucket to 4096 characters of JSON.

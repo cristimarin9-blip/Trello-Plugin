@@ -112,6 +112,13 @@ Two platform facts shape most of the design:
 * **Built:** the Keel section's **⊞ Several tabs** button turns the tab bar into tick-boxes; each ticked tab shows as its own panel, one under another. **↑ ↓** on a panel moves it up or down (the tab bar follows the same order), **×** hides it; **✕ One tab** goes back to a single tab. Ctrl/Cmd/Shift-click on a tab adds it as a panel in one step. The choice is remembered per person (in this browser) and applies to every card.
 * **Code:** `public/js/views/card-back.js`.
 
+## 19. Print / handover
+* **Built:** card button **Print / handover** opens a full-screen editor with a live page preview. **What to print:** tick and reorder (↑ ↓) Handover note, Card summary (board, list, start/due, priority, members, labels, card link), Description, Fields (only filled / shown on the card / all, grouped by section tab, notes as formatted text), Client stages (stage, since, deadline, note; period end), Companies House (details, deadlines, officers), Checklists (all or only open items, with sub-points), Subtasks & parent, Latest comments (3–25), Attachments. **Page:** A4 or US Letter, text size, leave out empty sections, footer with who printed it and when. **Print / save as PDF** prints only the page.
+* **Handover note:** written in the editor, saved on the card (up to 1,000 characters) and printed first in a highlighted box.
+* **Board default:** **Save as board default** stores the layout for every card on the board; **Reset** returns to it.
+* **Limits:** checklists, comments and field values need Keel to be authorised. The handover note shares the card's 4 KB Keel storage; if a card is full, Keel says so (the note still prints).
+* **Code:** `public/js/views/print.js`, `public/js/lib/print-layout.js`, `public/css/print.css`, `public/js/features/print.js`.
+
 ## Data stored by the Power-Up
 
 | Scope | Key | Contents |
@@ -123,6 +130,8 @@ Two platform facts shape most of the design:
 | card | `crm` | `{ bookkeeping|accounts|vat|paye: { on, stage, changed, note, period? } }` (`period` only on cards set up before the title was used) |
 | card | `schedule` | `[{ id, at, type, listId?, listName?, value?, temp? }]` |
 | card | `fieldsRev` | time of the last Fields change (only used to refresh badges; values live in D1) |
+| card | `handover` | handover note for Print / handover (≤1,000 characters) |
+| board | `printLayout` | default print layout (only what differs from the standard) |
 | card | `features` | per-card override `{ featureId: true/false }` (absent = follows board defaults) |
 | board | `settings` | `{ chProxyUrl, cardBadges: { badgeId: true/false }, defaults: { featureId: true/false } }` |
 | board | `routines` | `[{ id, name, steps[] }]` |

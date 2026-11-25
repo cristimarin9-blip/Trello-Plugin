@@ -214,11 +214,11 @@ assert.deepEqual(badgesFor([{ id: 'c', name: 'VAT', type: 'choice', badge: true,
 { // Every icon a button refers to exists, in each colour, and buttons do not share icons.
   const { readFileSync, existsSync } = await import('node:fs');
   const used = [];
-  for (const f of ['audit', 'bulk', 'crm', 'fields', 'relationships', 'routines', 'scheduler']) {
+  for (const f of ['audit', 'bulk', 'crm', 'fields', 'relationships', 'routines', 'scheduler', 'print']) {
     const src = readFileSync(`public/js/features/${f}.js`, 'utf8');
     for (const m of src.matchAll(/(boardIcon|cardIcon)\('([a-z-]+)'\)/g)) used.push([m[1], m[2]]);
   }
-  assert.equal(used.length, 9, 'five board buttons and four card buttons have icons');
+  assert.equal(used.length, 10, 'five board buttons and five card buttons have icons');
   assert.equal(new Set(used.map(([, n]) => n)).size, used.length, 'each button has its own icon');
   for (const [kind, name] of used) for (const v of kind === 'boardIcon' ? ['dark', 'light'] : ['gray']) assert.ok(existsSync(`public/img/icons/${name}-${v}.svg`), `${name}-${v}.svg exists`);
 }
@@ -242,6 +242,25 @@ assert.deepEqual(badgesFor([{ id: 'c', name: 'VAT', type: 'choice', badge: true,
   assert.equal(s[0].due, '2026-11-07');
   assert.equal(s[0].changed, '2026-11-20');
   assert.match(C.today(), /^\d{4}-\d{2}-\d{2}$/);
+}
+{ // Print layouts: defaults, cleaning, compact storage.
+  const P = await import('../public/js/lib/print-layout.js');
+  const d = P.defaultLayout();
+  assert.deepEqual(d.sections.map((s) => s.id), P.SECTION_ORDER);
+  assert.equal(d.sections.find((s) => s.id === 'attachments').on, false);
+  assert.equal(d.sections.find((s) => s.id === 'comments').opts.count, 5);
+  assert.deepEqual(P.compactLayout(d), { sections: d.sections.map((s) => (s.on ? { id: s.id } : { id: s.id, on: false })), page: {} }, 'defaults store nothing extra');
+  const custom = { sections: [{ id: 'comments', opts: { count: '10' } }, { id: 'bogus' }, { id: 'fields', on: false, opts: { show: 'nope' } }], page: { size: 'Letter', font: 'huge' } };
+  const clean = P.sanitizeLayout(custom);
+  assert.deepEqual(clean.sections.slice(0, 2).map((s) => s.id), ['comments', 'fields'], 'saved order kept, unknown dropped');
+  assert.equal(clean.sections[0].opts.count, 10);
+  assert.equal(clean.sections[1].on, false);
+  assert.equal(clean.sections[1].opts.show, 'filled', 'bad choice falls back');
+  assert.equal(clean.sections.length, P.SECTION_ORDER.length, 'sections missing from a saved layout are added');
+  assert.equal(clean.page.size, 'Letter');
+  assert.equal(clean.page.font, 'normal');
+  assert.deepEqual(P.sanitizeLayout(P.compactLayout(clean)), clean, 'compact form round-trips');
+  assert.ok(JSON.stringify(P.compactLayout(clean)).length < 600, 'fits easily in board storage');
 }
 const { resolve, builtInDefaults, FEATURE_IDS } = await import('../public/js/lib/features.js');
 const d = builtInDefaults();

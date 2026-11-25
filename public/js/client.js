@@ -15,6 +15,7 @@ import * as audit from './features/audit.js';
 import * as listFilter from './features/list-filter.js';
 import * as settings from './features/settings.js';
 import * as fields from './features/fields.js';
+import * as print from './features/print.js';
 
 const ICON = new URL('../img/icon.svg', import.meta.url).href;
 const BOARD_ICON = {
@@ -42,7 +43,8 @@ window.TrelloPowerUp.initialize({
     return [
       ...relationships.cardButtons(ICON, enabled),
       ...routines.cardButtons(ICON, enabled),
-      ...scheduler.cardButtons(ICON, enabled)
+      ...scheduler.cardButtons(ICON, enabled),
+      ...print.cardButtons()
     ];
   },
 

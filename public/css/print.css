@@ -1,0 +1,64 @@
+/* Print / handover editor (screen) and the printed page. */
+.print-body { padding: 0; background: #eef0f3; }
+.print-shell { display: grid; grid-template-columns: 330px minmax(0, 1fr); min-height: 100vh; }
+.print-editor { background: #fff; border-right: 1px solid var(--line, #dcdfe4); padding: 12px; overflow: auto; max-height: 100vh; position: sticky; top: 0; }
+.print-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+.print-actions .primary { flex: 1 1 100%; padding: 9px 12px; font-size: 14px; }
+.print-sections { list-style: none; margin: 0; padding: 0; }
+.print-sections li { padding: 5px 4px; border-bottom: 1px solid #091e420f; }
+.print-sections li.off > .row span { color: var(--muted); }
+.print-sections .row { gap: 6px; }
+.print-opts { margin: 4px 0 2px 24px; font-size: 12px; }
+.print-opts .kv-row { grid-template-columns: 110px minmax(0, 1fr); margin: 3px 0; }
+.print-preview { padding: 24px; overflow: auto; }
+#status { position: fixed; bottom: 0; left: 0; width: 330px; margin: 0; padding: 6px 12px; background: #fff; border-top: 1px solid var(--line, #dcdfe4); min-height: 0; }
+#status:empty { display: none; }
+.print-editor { padding-bottom: 40px; }
+
+/* The page */
+.p-page { background: #fff; color: #172b4d; margin: 0 auto; box-shadow: 0 2px 10px #091e4226; padding: 16mm 15mm; font-size: 11pt; line-height: 1.45; }
+.p-page.size-A4 { width: 210mm; min-height: 297mm; }
+.p-page.size-Letter { width: 216mm; min-height: 279mm; }
+.p-page.font-small { font-size: 9.5pt; } .p-page.font-large { font-size: 12.5pt; }
+.p-header { border-bottom: 2px solid #172b4d; padding-bottom: 6px; margin-bottom: 12px; }
+.p-header h1 { margin: 0; font-size: 1.6em; line-height: 1.2; }
+.p-sub { color: #44546f; font-size: .9em; margin-top: 2px; }
+.p-section { margin: 0 0 14px; break-inside: avoid-page; }
+.p-section h2 { font-size: 1.05em; text-transform: uppercase; letter-spacing: .04em; color: #0c66e4; border-bottom: 1px solid #dcdfe4; padding-bottom: 2px; margin: 0 0 6px; }
+.p-tabhead { font-size: 1em; margin: 10px 0 4px; color: #172b4d; text-transform: none; letter-spacing: 0; }
+.p-subhead { font-size: .95em; margin: 8px 0 3px; color: #44546f; }
+.p-kv { display: grid; grid-template-columns: minmax(120px, 34%) 1fr; gap: 2px 14px; margin: 0; }
+.p-kv dt { color: #44546f; } .p-kv dd { margin: 0; }
+.p-muted { color: #626f86; }
+.p-link { word-break: break-all; font-size: .9em; }
+.p-dot { display: inline-block; width: .7em; height: .7em; border-radius: 50%; margin-right: 5px; vertical-align: baseline; background: #b3bac5; }
+.p-dot.green { background: #4b9d3d; } .p-dot.yellow { background: #e2b203; } .p-dot.orange { background: #ff9f1a; } .p-dot.red { background: #eb5a46; }
+.p-dot.purple { background: #c377e0; } .p-dot.blue { background: #0079bf; } .p-dot.sky { background: #00c2e0; } .p-dot.lime { background: #51e898; }
+.p-dot.pink { background: #ff78cb; } .p-dot.black { background: #172b4d; }
+.p-label { margin-right: 10px; white-space: nowrap; }
+.p-handover { border: 1.5px solid #e2b203; background: #fffae6; border-radius: 6px; padding: 8px 12px; }
+.p-notes { margin: 6px 0; } .p-notes-title { font-weight: 600; color: #44546f; }
+.p-table { width: 100%; border-collapse: collapse; font-size: .95em; }
+.p-table th, .p-table td { border-bottom: 1px solid #dcdfe4; padding: 3px 6px; text-align: left; position: static; background: none; }
+.p-list { margin: 2px 0; padding-left: 18px; }
+.p-checks { list-style: none; margin: 2px 0; padding: 0; }
+.p-checks li.done { color: #626f86; text-decoration: line-through; }
+.p-comment { border-left: 3px solid #dcdfe4; padding: 2px 0 2px 8px; margin: 6px 0; }
+.p-comment-meta { font-size: .85em; color: #626f86; }
+.p-footer { margin-top: 18px; padding-top: 6px; border-top: 1px solid #dcdfe4; font-size: .8em; color: #626f86; word-break: break-all; }
+.p-page .notes h4 { font-size: 1em; }
+
+@media (max-width: 900px) {
+  .print-shell { grid-template-columns: minmax(0, 1fr); }
+  .print-editor { position: static; max-height: none; border-right: 0; }
+  .p-page.size-A4, .p-page.size-Letter { width: auto; min-height: 0; }
+}
+
+@media print {
+  .no-print, #status { display: none !important; }
+  .print-body, .print-preview { background: #fff; padding: 0; }
+  .print-shell { display: block; }
+  .p-page { box-shadow: none; margin: 0; padding: 0; width: auto !important; min-height: 0 !important; }
+  .p-section h2 { color: #0c66e4; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .p-handover, .p-dot { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}

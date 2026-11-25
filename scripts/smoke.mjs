@@ -13,7 +13,7 @@ const MOCK = `
   const data = {};
   const bucket = (scope) => (data[scope] ||= { shared: {} }).shared;
   const cardsList = [
-    { id: 'c1', name: 'Acme Ltd — year end', idList: 'l1', idShort: 7, dueComplete: false, labels: [{ id: 'lb1', name: 'VAT', color: 'green' }], members: [], due: '2026-12-01T17:00:00.000Z', dateLastActivity: '2026-11-20T10:00:00.000Z', badges: { checkItems: 4, checkItemsChecked: 3 } },
+    { id: 'c1', name: 'Acme Ltd — year end', desc: 'Client sends records by email.\\n- bank statements\\n- sales invoices', url: 'https://trello.com/c/abc123', attachments: [{ name: 'Engagement letter.pdf', url: 'https://example.com/el.pdf' }], idList: 'l1', idShort: 7, dueComplete: false, labels: [{ id: 'lb1', name: 'VAT', color: 'green' }], members: [], due: '2026-12-01T17:00:00.000Z', dateLastActivity: '2026-11-20T10:00:00.000Z', badges: { checkItems: 4, checkItemsChecked: 3 } },
     { id: 'c2', name: 'Beta Ltd — bookkeeping', idList: 'l2', idShort: 8, dueComplete: true, labels: [], members: [], dateLastActivity: '2026-11-19T10:00:00.000Z', badges: { checkItems: 0, checkItemsChecked: 0 } }
   ];
   function makeT() {
@@ -40,6 +40,7 @@ const MOCK = `
     iframe: () => makeT()
   };
   window.__makeT = makeT;
+
   window.__seed = () => {
     bucket('card').priority = 'high';
     bucket('card').company = { number: '00000006', name: 'TEST LTD', status: 'active', accountsDue: '2026-12-31', csDue: '2026-11-30', accountsMadeUpTo: '2026-03-31', ctPaymentDue: '2027-01-01', officers: [{ n: 'DOE, Jane', r: 'director', a: '2010-01-01' }], fetchedAt: Date.now() };
@@ -52,6 +53,7 @@ const MOCK = `
     bucket('board').audit = { members: { m1: { n: 'Ann Example', u: 'ann', first: Date.now() - 1e8, last: Date.now(), v: 4 } }, log: [{ m: 'm1', at: Date.now() }] };
     bucket('board').scheduleLog = [{ at: Date.now(), card: 'Old card', what: 'Archive', ok: true }];
   };
+  if (window.__autoSeed) window.__seed();
 })();`;
 
 const server = spawn('python3', ['-m', 'http.server', String(PORT), '--directory', 'public'], { stdio: 'ignore' });
@@ -517,6 +519,68 @@ const F = () => Object.fromEntries(store.boards.b1.fields.map((f) => [f.name, f]
   console.log('  table rows:', 2, '· groups:', groups.length, '· csv bytes:', csv.length);
   await done(p, 'fields: table view');
 }
+{ // Print / handover: choose sections, reorder, options, handover note, board default, print.
+  await context.route('https://api.trello.com/1/cards/*/checklists**', (route) => route.fulfill({ status: 200, contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' },
+    body: JSON.stringify([{ id: 'k1', name: 'Year end', pos: 1, checkItems: [{ id: 'i1', name: 'Bank reconciled', state: 'complete', pos: 1 }, { id: 'i2', name: 'Accruals reviewed', state: 'incomplete', pos: 2 }, { id: 'i3', name: '↳ Wages accrual', state: 'incomplete', pos: 3 }] }]) }));
+  await context.route('https://api.trello.com/1/cards/*/actions**', (route) => route.fulfill({ status: 200, contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' },
+    body: JSON.stringify([1, 2, 3, 4, 5, 6].map((n) => ({ date: `2026-11-${String(20 - n).padStart(2, '0')}T10:00:00.000Z`, memberCreator: { fullName: 'Ann Example' }, data: { text: `Comment number ${n}` } }))) }));
+  const page = await context.newPage();
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
+  page.on('console', (m) => { if (m.type() === 'error') errors.push(`console: ${m.text()}`); });
+  await page.addInitScript(() => { window.__token = 'test-token'; window.__autoSeed = true; window.__printed = 0; window.print = () => { window.__printed += 1; }; });
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto(`${BASE}/views/print.html`, { waitUntil: 'networkidle' });
+  await page.locator('.p-page h1').waitFor();
+  const headings = async () => page.locator('.p-section h2').allTextContents();
+  let h = await headings();
+  for (const want of ['Card summary', 'Description', 'Fields', 'Client stages', 'Companies House', 'Checklists', 'Subtasks & parent', 'Latest comments']) if (!h.includes(want)) errors.push(`preview is missing ${want}: ${h.join(', ')}`);
+  if (h.includes('Attachments')) errors.push('attachments should be off by default');
+  if (h.includes('Handover note')) errors.push('an empty handover note should be left out');
+  const text = await page.locator('.p-page').textContent();
+  for (const want of ['Acme Ltd — year end', 'Board › To do', 'High', 'bank statements', 'TEST LTD', 'Accruals reviewed', 'Wages accrual', 'Beta Ltd', 'Comment number 1', 'Prepared by Ann Example']) if (!text.includes(want)) errors.push(`preview is missing "${want}"`);
+  if (text.includes('Comment number 6')) errors.push('only the latest 5 comments should print by default');
+  // Untick a section, move one, change options.
+  await page.locator('input[aria-label="Print Companies House"]').uncheck();
+  if ((await headings()).includes('Companies House')) errors.push('unticked section still printed');
+  await page.locator('button[aria-label="Move Client stages up"]').click();
+  h = await headings();
+  if (h.indexOf('Client stages') > h.indexOf('Fields')) errors.push(`moving up did not change the order: ${h.join(', ')}`);
+  await page.locator('select[aria-label="Latest comments: How many"]').selectOption('3');
+  if ((await page.locator('.p-comment').count()) !== 3) errors.push('comment count option not applied');
+  await page.locator('.print-sections li', { hasText: 'Checklists' }).locator('label', { hasText: 'Only open items' }).locator('input').check();
+  if ((await page.locator('.p-page').textContent()).includes('Bank reconciled')) errors.push('done checklist items still printed');
+  await page.locator('input[aria-label="Print Attachments"]').check();
+  if (!(await page.locator('.p-page').textContent()).includes('Engagement letter.pdf')) errors.push('attachments not printed');
+  // Handover note: printed at the top and saved on the card.
+  await page.locator('textarea[aria-label="Handover note"]').fill('Waiting on:\n- August sales\n- Director loan statement');
+  await page.waitForTimeout(900);
+  if ((await headings())[0] !== 'Handover note') errors.push('handover note should print first');
+  const saved = await page.evaluate(() => window.__makeT().get('card', 'shared', 'handover'));
+  if (!/Director loan/.test(saved || '')) errors.push(`handover note not saved on the card: ${saved}`);
+  // Page options.
+  await page.locator('select[aria-label="Paper"]').selectOption('Letter');
+  if (!(await page.locator('.p-page.size-Letter').count())) errors.push('paper size not applied');
+  // Board default, then a fresh open uses it.
+  await page.locator('button', { hasText: 'Save as board default' }).click();
+  await page.waitForTimeout(200);
+  const board = await page.evaluate(() => window.__makeT().get('board', 'shared', 'printLayout'));
+  if (!board || JSON.stringify(board).length > 600 || !board.sections.some((s) => s.id === 'company' && s.on === false) || board.page.size !== 'Letter') errors.push(`board default not saved compactly: ${JSON.stringify(board)}`);
+  await page.locator('.print-actions button.primary').click();
+  if ((await page.evaluate(() => window.__printed)) !== 1) errors.push('Print button did not print');
+  // What actually prints: only the page.
+  await page.emulateMedia({ media: 'print' });
+  if (await page.locator('.print-editor').isVisible()) errors.push('the editor should not print');
+  if (process.env.SHOTS) {
+    await page.pdf({ path: `${process.env.SHOTS}/handover.pdf`, format: 'Letter', printBackground: true });
+    await page.emulateMedia({ media: 'screen' });
+    await page.screenshot({ path: `${process.env.SHOTS}/print-editor.png`, fullPage: false });
+  }
+  await page.close();
+  errors.forEach((x) => problems.push(`print: ${x}`));
+  console.log(`${errors.length ? '✗' : '✓'} print: handover layout editor`);
+}
+
 { // Every field type from the gallery works on a card, in the table and in the export.
   await context.route('https://api.trello.com/1/boards/*/checklists**', (route) => route.fulfill({ status: 200, contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' },
     body: JSON.stringify([{ idCard: 'c1', name: 'Year end', checkItems: [{ state: 'complete' }, { state: 'incomplete' }] }, { idCard: 'c1', name: 'VAT return', checkItems: [{ state: 'complete' }, { state: 'complete' }] }]) }));

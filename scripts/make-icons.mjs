@@ -14,6 +14,7 @@ const ICONS = {
   subtasks: '<path d="M6 3v13a2 2 0 0 0 2 2h4"/><path d="M6 8h6"/><rect x="13" y="5.5" width="8" height="5" rx="1.5"/><rect x="13" y="15.5" width="8" height="5" rx="1.5"/>',
   routine: '<path d="M10 6h11M10 12h11M10 18h11"/><path d="M3 6l1.5 1.5L7 5M3 12l1.5 1.5L7 11M3 18l1.5 1.5L7 17"/>',
   schedule: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/>',
+  print: '<path d="M7 9V3h10v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M7 14h10v7H7z"/><path d="M17.5 12h.01"/>',
   temporary: '<path d="M6 3h12M6 21h12"/><path d="M7 3c0 4 3 5.5 5 9-2 3.5-5 5-5 9M17 3c0 4-3 5.5-5 9 2 3.5 5 5 5 9"/>'
 };
 const COLORS = { dark: '#172b4d', light: '#ffffff', gray: '#44546f' };

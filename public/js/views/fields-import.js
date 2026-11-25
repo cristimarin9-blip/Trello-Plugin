@@ -5,7 +5,7 @@ import { api as trello } from '../lib/trello-api.js';
 import { clear, el, setStatus } from '../lib/util.js';
 
 // Keel's own pluginData keys, used to tell Keel's data apart from other Power-Ups'.
-const KEEL_KEYS = ['priority', 'company', 'views', 'parent', 'children', 'crm', 'schedule', 'features', 'routines', 'audit', 'settings', 'scheduleLog', 'fieldsRev'];
+const KEEL_KEYS = ['priority', 'company', 'views', 'parent', 'children', 'crm', 'schedule', 'features', 'routines', 'audit', 'settings', 'scheduleLog', 'fieldsRev', 'handover', 'printLayout'];
 
 function parse(value) {
   try { return JSON.parse(value); } catch { return value; }
