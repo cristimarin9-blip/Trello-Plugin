@@ -15,8 +15,8 @@ export const SECTIONS = {
 };
 export const SECTION_ORDER = Object.keys(SECTIONS);
 
+// Always A4 portrait; sections that would be cut off move to the next sheet (lib/paginate.js).
 export const PAGE = {
-  size: { label: 'Paper', default: 'A4', choices: { A4: 'A4', Letter: 'US Letter' } },
   font: { label: 'Text size', default: 'normal', choices: { small: 'Small', normal: 'Normal', large: 'Large' } },
   skipEmpty: { label: 'Leave out empty sections', default: true },
   footer: { label: 'Footer with who printed it and when', default: true }

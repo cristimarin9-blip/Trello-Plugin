@@ -10,6 +10,7 @@ import { TRACKS, summarize } from '../features/crm.js';
 import { PRIORITIES } from '../features/priority.js';
 import { SECTIONS, PAGE, HANDOVER_MAX, defaultLayout, sanitizeLayout, compactLayout } from '../lib/print-layout.js';
 import { byId, clear, el, formatDate, formatDateTime, setStatus } from '../lib/util.js';
+import { paginate } from '../lib/paginate.js';
 
 const t = initIframe();
 const app = byId('app');
@@ -185,24 +186,27 @@ document.head.append(pageStyle);
 function renderPage(target) {
   clear(target);
   const p = layout.page;
-  pageStyle.textContent = `@page { size: ${p.size === 'Letter' ? 'letter' : 'A4'} portrait; margin: 14mm; }`;
-  const page = el('article', { class: `p-page size-${p.size} font-${p.font}`, 'aria-label': 'Print preview' });
-  page.append(el('header', { class: 'p-header' },
+  pageStyle.textContent = '@page { size: A4 portrait; margin: 0; }';
+  const blocks = [{ node: el('header', { class: 'p-header' },
     el('h1', {}, data.card.name),
-    el('div', { class: 'p-sub' }, [data.board.name, data.list].filter(Boolean).join(' › '))));
-  let count = 0;
+    el('div', { class: 'p-sub' }, [data.board.name, data.list].filter(Boolean).join(' › '))) }];
   for (const s of layout.sections) {
     if (!s.on) continue;
     const body = RENDER[s.id](s.opts);
     if (!body && p.skipEmpty) continue;
-    count += 1;
-    page.append(el('section', { class: `p-section p-sec-${s.id}` },
-      s.id === 'handover' ? el('h2', {}, 'Handover note') : el('h2', {}, SECTIONS[s.id].label),
-      body || el('p', { class: 'p-muted' }, 'Nothing to show.')));
+    const heading = el('h2', {}, SECTIONS[s.id].label);
+    blocks.push({ node: el('section', { class: `p-section p-sec-${s.id}` }, heading, body || el('p', { class: 'p-muted' }, 'Nothing to show.')), heading });
   }
-  if (!count) page.append(el('p', { class: 'p-muted' }, 'Nothing selected to print. Tick some sections on the left.'));
-  if (p.footer) page.append(el('footer', { class: 'p-footer' }, `Prepared by ${data.me.fullName || data.me.username || 'Keel user'} on ${formatDateTime(new Date())} · ${data.card.url || ''}`));
-  target.append(page);
+  if (blocks.length === 1) blocks.push({ node: el('p', { class: 'p-muted' }, 'Nothing selected to print. Tick some sections on the left.') });
+  const sheetClass = `p-page p-sheet font-${p.font}`;
+  const sheets = paginate(blocks, { host: target, sheetClass, footer: p.footer });
+  const by = `Prepared by ${data.me.fullName || data.me.username || 'Keel user'} on ${formatDateTime(new Date())}`;
+  sheets.forEach((nodes, i) => {
+    if (sheets.length > 1) target.append(el('div', { class: 'p-sheet-label no-print' }, `Sheet ${i + 1} of ${sheets.length}`));
+    target.append(el('article', { class: sheetClass, 'aria-label': `Sheet ${i + 1} of ${sheets.length}` },
+      el('div', { class: 'p-sheet-content' }, ...nodes),
+      p.footer ? el('footer', { class: 'p-footer' }, el('span', {}, `${by} · ${data.card.url || ''}`), el('span', {}, `Page ${i + 1} of ${sheets.length}`)) : null));
+  });
 }
 
 // --- Editor ---------------------------------------------------------------------------

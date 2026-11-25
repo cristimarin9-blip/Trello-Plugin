@@ -113,11 +113,11 @@ Two platform facts shape most of the design:
 * **Code:** `public/js/views/card-back.js`.
 
 ## 19. Print / handover
-* **Built:** card button **Print / handover** opens a full-screen editor with a live page preview. **What to print:** tick and reorder (↑ ↓) Handover note, Card summary (board, list, start/due, priority, members, labels, card link), Description, Fields (only filled / shown on the card / all, grouped by section tab, notes as formatted text), Client stages (stage, since, deadline, note; period end), Companies House (details, deadlines, officers), Checklists (all or only open items, with sub-points), Subtasks & parent, Latest comments (3–25), Attachments. **Page:** A4 or US Letter, text size, leave out empty sections, footer with who printed it and when. **Print / save as PDF** prints only the page.
+* **Built:** card button **Print / handover** opens a full-screen editor with a live page preview. **What to print:** tick and reorder (↑ ↓) Handover note, Card summary (board, list, start/due, priority, members, labels, card link), Description, Fields (only filled / shown on the card / all, grouped by section tab, notes as formatted text), Client stages (stage, since, deadline, note; period end), Companies House (details, deadlines, officers), Checklists (all or only open items, with sub-points), Subtasks & parent, Latest comments (3–25), Attachments. **Page:** always A4 portrait; text size, leave out empty sections, footer with who printed it, when, and "Page n of N". The preview shows the real A4 sheets: a section that does not fit in the space left on a sheet moves to the next sheet instead of being cut off; only a section longer than a whole sheet is split (between list items, rows or paragraphs, never mid-line) and continues under "… (continued)". **Print / save as PDF** prints exactly those sheets, one page each.
 * **Handover note:** written in the editor, saved on the card (up to 1,000 characters) and printed first in a highlighted box.
 * **Board default:** **Save as board default** stores the layout for every card on the board; **Reset** returns to it.
 * **Limits:** checklists, comments and field values need Keel to be authorised. The handover note shares the card's 4 KB Keel storage; if a card is full, Keel says so (the note still prints).
-* **Code:** `public/js/views/print.js`, `public/js/lib/print-layout.js`, `public/css/print.css`, `public/js/features/print.js`.
+* **Code:** `public/js/views/print.js`, `public/js/lib/print-layout.js`, `public/js/lib/paginate.js` (A4 sheets), `public/css/print.css`, `public/js/features/print.js`.
 
 ## Data stored by the Power-Up
 

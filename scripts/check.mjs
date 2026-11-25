@@ -250,14 +250,15 @@ assert.deepEqual(badgesFor([{ id: 'c', name: 'VAT', type: 'choice', badge: true,
   assert.equal(d.sections.find((s) => s.id === 'attachments').on, false);
   assert.equal(d.sections.find((s) => s.id === 'comments').opts.count, 5);
   assert.deepEqual(P.compactLayout(d), { sections: d.sections.map((s) => (s.on ? { id: s.id } : { id: s.id, on: false })), page: {} }, 'defaults store nothing extra');
-  const custom = { sections: [{ id: 'comments', opts: { count: '10' } }, { id: 'bogus' }, { id: 'fields', on: false, opts: { show: 'nope' } }], page: { size: 'Letter', font: 'huge' } };
+  const custom = { sections: [{ id: 'comments', opts: { count: '10' } }, { id: 'bogus' }, { id: 'fields', on: false, opts: { show: 'nope' } }], page: { size: 'Letter', font: 'huge', footer: false } };
   const clean = P.sanitizeLayout(custom);
   assert.deepEqual(clean.sections.slice(0, 2).map((s) => s.id), ['comments', 'fields'], 'saved order kept, unknown dropped');
   assert.equal(clean.sections[0].opts.count, 10);
   assert.equal(clean.sections[1].on, false);
   assert.equal(clean.sections[1].opts.show, 'filled', 'bad choice falls back');
   assert.equal(clean.sections.length, P.SECTION_ORDER.length, 'sections missing from a saved layout are added');
-  assert.equal(clean.page.size, 'Letter');
+  assert.equal(clean.page.size, undefined, 'always A4: no paper choice is kept');
+  assert.equal(clean.page.footer, false);
   assert.equal(clean.page.font, 'normal');
   assert.deepEqual(P.sanitizeLayout(P.compactLayout(clean)), clean, 'compact form round-trips');
   assert.ok(JSON.stringify(P.compactLayout(clean)).length < 600, 'fits easily in board storage');

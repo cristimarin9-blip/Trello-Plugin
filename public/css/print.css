@@ -15,15 +15,19 @@
 #status:empty { display: none; }
 .print-editor { padding-bottom: 40px; }
 
-/* The page */
-.p-page { background: #fff; color: #172b4d; margin: 0 auto; box-shadow: 0 2px 10px #091e4226; padding: 16mm 15mm; font-size: 11pt; line-height: 1.45; }
-.p-page.size-A4 { width: 210mm; min-height: 297mm; }
-.p-page.size-Letter { width: 216mm; min-height: 279mm; }
+/* The page: A4 sheets, laid out by lib/paginate.js (the same on screen and on paper). */
+.p-page { background: #fff; color: #172b4d; font-size: 11pt; line-height: 1.45; }
+.p-sheet { width: 210mm; height: 297mm; padding: 14mm; box-sizing: border-box; margin: 0 auto 18px; box-shadow: 0 2px 10px #091e4226; position: relative; overflow: hidden; }
+.p-sheet.p-measure { position: absolute; left: -10000px; top: 0; height: auto; visibility: hidden; box-shadow: none; }
+.p-sheet-label { width: 210mm; margin: 0 auto 4px; font-size: 11px; color: #626f86; }
 .p-page.font-small { font-size: 9.5pt; } .p-page.font-large { font-size: 12.5pt; }
+.p-sheet-content > :last-child { margin-bottom: 0; }
+.p-frag + .p-frag { margin-top: 0; }
+.p-frag.p-table + .p-frag.p-table thead { display: none; }
 .p-header { border-bottom: 2px solid #172b4d; padding-bottom: 6px; margin-bottom: 12px; }
 .p-header h1 { margin: 0; font-size: 1.6em; line-height: 1.2; }
 .p-sub { color: #44546f; font-size: .9em; margin-top: 2px; }
-.p-section { margin: 0 0 14px; break-inside: avoid-page; }
+.p-section { margin: 0 0 14px; }
 .p-section h2 { font-size: 1.05em; text-transform: uppercase; letter-spacing: .04em; color: #0c66e4; border-bottom: 1px solid #dcdfe4; padding-bottom: 2px; margin: 0 0 6px; }
 .p-tabhead { font-size: 1em; margin: 10px 0 4px; color: #172b4d; text-transform: none; letter-spacing: 0; }
 .p-subhead { font-size: .95em; margin: 8px 0 3px; color: #44546f; }
@@ -45,20 +49,22 @@
 .p-checks li.done { color: #626f86; text-decoration: line-through; }
 .p-comment { border-left: 3px solid #dcdfe4; padding: 2px 0 2px 8px; margin: 6px 0; }
 .p-comment-meta { font-size: .85em; color: #626f86; }
-.p-footer { margin-top: 18px; padding-top: 6px; border-top: 1px solid #dcdfe4; font-size: .8em; color: #626f86; word-break: break-all; }
+.p-footer { position: absolute; left: 14mm; right: 14mm; bottom: 7mm; display: flex; justify-content: space-between; gap: 12px; padding-top: 4px; border-top: 1px solid #dcdfe4; font-size: 8pt; color: #626f86; }
+.p-footer span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.p-footer span:last-child { white-space: nowrap; }
 .p-page .notes h4 { font-size: 1em; }
 
 @media (max-width: 900px) {
   .print-shell { grid-template-columns: minmax(0, 1fr); }
   .print-editor { position: static; max-height: none; border-right: 0; }
-  .p-page.size-A4, .p-page.size-Letter { width: auto; min-height: 0; }
 }
 
 @media print {
   .no-print, #status { display: none !important; }
   .print-body, .print-preview { background: #fff; padding: 0; }
   .print-shell { display: block; }
-  .p-page { box-shadow: none; margin: 0; padding: 0; width: auto !important; min-height: 0 !important; }
+  .p-sheet { box-shadow: none; margin: 0; break-after: page; page-break-after: always; }
+  .p-sheet:last-of-type { break-after: auto; page-break-after: auto; }
   .p-section h2 { color: #0c66e4; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .p-handover, .p-dot { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }

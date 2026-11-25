@@ -537,7 +537,7 @@ const F = () => Object.fromEntries(store.boards.b1.fields.map((f) => [f.name, f]
   for (const want of ['Card summary', 'Description', 'Fields', 'Client stages', 'Companies House', 'Checklists', 'Subtasks & parent', 'Latest comments']) if (!h.includes(want)) errors.push(`preview is missing ${want}: ${h.join(', ')}`);
   if (h.includes('Attachments')) errors.push('attachments should be off by default');
   if (h.includes('Handover note')) errors.push('an empty handover note should be left out');
-  const text = await page.locator('.p-page').textContent();
+  const text = await page.locator('.print-preview').textContent();
   for (const want of ['Acme Ltd — year end', 'Board › To do', 'High', 'bank statements', 'TEST LTD', 'Accruals reviewed', 'Wages accrual', 'Beta Ltd', 'Comment number 1', 'Prepared by Ann Example']) if (!text.includes(want)) errors.push(`preview is missing "${want}"`);
   if (text.includes('Comment number 6')) errors.push('only the latest 5 comments should print by default');
   // Untick a section, move one, change options.
@@ -549,33 +549,69 @@ const F = () => Object.fromEntries(store.boards.b1.fields.map((f) => [f.name, f]
   await page.locator('select[aria-label="Latest comments: How many"]').selectOption('3');
   if ((await page.locator('.p-comment').count()) !== 3) errors.push('comment count option not applied');
   await page.locator('.print-sections li', { hasText: 'Checklists' }).locator('label', { hasText: 'Only open items' }).locator('input').check();
-  if ((await page.locator('.p-page').textContent()).includes('Bank reconciled')) errors.push('done checklist items still printed');
+  if ((await page.locator('.print-preview').textContent()).includes('Bank reconciled')) errors.push('done checklist items still printed');
   await page.locator('input[aria-label="Print Attachments"]').check();
-  if (!(await page.locator('.p-page').textContent()).includes('Engagement letter.pdf')) errors.push('attachments not printed');
+  if (!(await page.locator('.print-preview').textContent()).includes('Engagement letter.pdf')) errors.push('attachments not printed');
   // Handover note: printed at the top and saved on the card.
   await page.locator('textarea[aria-label="Handover note"]').fill('Waiting on:\n- August sales\n- Director loan statement');
   await page.waitForTimeout(900);
   if ((await headings())[0] !== 'Handover note') errors.push('handover note should print first');
   const saved = await page.evaluate(() => window.__makeT().get('card', 'shared', 'handover'));
   if (!/Director loan/.test(saved || '')) errors.push(`handover note not saved on the card: ${saved}`);
-  // Page options.
-  await page.locator('select[aria-label="Paper"]').selectOption('Letter');
-  if (!(await page.locator('.p-page.size-Letter').count())) errors.push('paper size not applied');
+  // Always A4: no paper choice; sheets are A4.
+  if (await page.locator('select[aria-label="Paper"]').count()) errors.push('there should be no paper choice (always A4)');
+  const sheetMm = await page.evaluate(() => { const s = document.querySelector('article.p-sheet'); const mm = s.getBoundingClientRect().width / 210; return [Math.round(s.getBoundingClientRect().width / mm), Math.round(s.getBoundingClientRect().height / mm)]; });
+  if (sheetMm.join('x') !== '210x297') errors.push(`sheets should be A4, got ${sheetMm.join('x')} mm`);
   // Board default, then a fresh open uses it.
   await page.locator('button', { hasText: 'Save as board default' }).click();
   await page.waitForTimeout(200);
   const board = await page.evaluate(() => window.__makeT().get('board', 'shared', 'printLayout'));
-  if (!board || JSON.stringify(board).length > 600 || !board.sections.some((s) => s.id === 'company' && s.on === false) || board.page.size !== 'Letter') errors.push(`board default not saved compactly: ${JSON.stringify(board)}`);
+  if (!board || JSON.stringify(board).length > 600 || !board.sections.some((s) => s.id === 'company' && s.on === false)) errors.push(`board default not saved compactly: ${JSON.stringify(board)}`);
   await page.locator('.print-actions button.primary').click();
   if ((await page.evaluate(() => window.__printed)) !== 1) errors.push('Print button did not print');
   // What actually prints: only the page.
   await page.emulateMedia({ media: 'print' });
   if (await page.locator('.print-editor').isVisible()) errors.push('the editor should not print');
-  if (process.env.SHOTS) {
-    await page.pdf({ path: `${process.env.SHOTS}/handover.pdf`, format: 'Letter', printBackground: true });
-    await page.emulateMedia({ media: 'screen' });
-    await page.screenshot({ path: `${process.env.SHOTS}/print-editor.png`, fullPage: false });
-  }
+  await page.emulateMedia({ media: 'screen' });
+  // Several sheets: nothing may run past the bottom of a sheet; a section that does not fit
+  // moves to the next sheet; one taller than a sheet continues with "(continued)".
+  const sheetCheck = () => page.evaluate(() => {
+    const mm = document.querySelector('article.p-sheet').getBoundingClientRect().width / 210;
+    const sheets = [...document.querySelectorAll('article.p-sheet')];
+    const out = { sheets: sheets.length, overflow: [], headings: [] };
+    sheets.forEach((s, i) => {
+      const bottom = s.getBoundingClientRect().bottom - (14 + (s.querySelector('.p-footer') ? 9 : 0)) * mm;
+      for (const child of s.querySelector('.p-sheet-content').children) if (child.getBoundingClientRect().bottom > bottom + 1) out.overflow.push(`sheet ${i + 1}: ${child.textContent.slice(0, 40)}`);
+      out.headings.push([...s.querySelectorAll('h2')].map((h) => h.textContent));
+    });
+    return out;
+  });
+  await page.locator('select[aria-label="Latest comments: How many"]').selectOption('25');
+  await page.locator('select[aria-label="Text size"]').selectOption('large');
+  let pg = await sheetCheck();
+  if (pg.overflow.length) errors.push(`content cut off: ${pg.overflow.join(' | ')}`);
+  const all = pg.headings.flat().map((x) => x.replace(' (continued)', ''));
+  if (new Set(all).size !== all.length && !pg.headings.flat().some((x) => x.includes('(continued)'))) errors.push(`a section was split without "(continued)": ${JSON.stringify(pg.headings)}`);
+  console.log(`  print: ${pg.sheets} A4 sheets · ${pg.headings.map((h, i) => `${i + 1}: ${h.join(', ')}`).join(' / ')}`);
+  // A handover note taller than a whole sheet continues on the next sheet.
+  const long = ['Outstanding:', ...Array.from({ length: 70 }, (_, i) => `- item ${i + 1}`)].join('\n');
+  await page.locator('textarea[aria-label="Handover note"]').fill(long);
+  await page.waitForTimeout(300);
+  pg = await sheetCheck();
+  if (pg.overflow.length) errors.push(`long section cut off: ${pg.overflow.join(' | ')}`);
+  if (!pg.headings.flat().includes('Handover note (continued)')) errors.push(`tall section should continue: ${JSON.stringify(pg.headings)}`);
+  if (pg.headings[0][0] !== 'Handover note') errors.push('handover note should start on sheet 1');
+  const items = await page.locator('article.p-sheet .p-sec-handover li').count();
+  if (items !== 70) errors.push(`continued section lost or repeated items: ${items} of 70`);
+  console.log(`  print (long note): ${pg.sheets} sheets · ${pg.headings.map((h, i) => `${i + 1}: ${h.join(', ')}`).join(' / ')}`);
+  // On paper: one PDF page per sheet.
+  await page.emulateMedia({ media: 'print' });
+  const pdf = await page.pdf({ preferCSSPageSize: true, printBackground: true, ...(process.env.SHOTS ? { path: `${process.env.SHOTS}/handover.pdf` } : {}) });
+  const pages = (pdf.toString('latin1').match(/\/Type\s*\/Page[^s]/g) || []).length;
+  if (pages !== pg.sheets) errors.push(`PDF has ${pages} pages for ${pg.sheets} sheets`);
+  console.log(`  print: PDF pages ${pages}`);
+  await page.emulateMedia({ media: 'screen' });
+  if (process.env.SHOTS) await page.screenshot({ path: `${process.env.SHOTS}/print-editor.png`, fullPage: false });
   await page.close();
   errors.forEach((x) => problems.push(`print: ${x}`));
   console.log(`${errors.length ? '✗' : '✓'} print: handover layout editor`);
