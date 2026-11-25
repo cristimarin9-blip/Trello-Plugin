@@ -299,3 +299,4 @@ tr.clickable:hover td { background: var(--bg-soft); }
 .track-toggle { background: none; padding: 2px 4px 2px 0; font-weight: 600; display: inline-flex; gap: 6px; align-items: center; }
 .track-toggle .caret { color: var(--muted); width: 10px; }
 .panel-tools { display: inline-flex; gap: 2px; } .panel-tools button { background: none; }
+.deadline-info { padding-top: 22px; } .deadline-info .linklike { padding: 0; font-size: 12px; }

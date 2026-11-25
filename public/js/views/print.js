@@ -2,11 +2,11 @@
 // looks, with a live page preview. "Print" prints just the page (or saves it as a PDF).
 import { initIframe } from '../lib/iframe.js';
 import { KEYS } from '../config.js';
-import { get, set, remove } from '../lib/storage.js';
+import { get, set, remove, getSettings } from '../lib/storage.js';
 import { api as trello, cards as trelloCards, getToken } from '../lib/trello-api.js';
 import { api as fieldsApi, isLayout, isComputed, isEmpty, visibleFields, formatValue, renderNotes, loadContext, valuesWithComputed, optionOf } from '../lib/fields.js';
 import { groupFields } from '../lib/field-ui.js';
-import { TRACKS, summarize } from '../features/crm.js';
+import { TRACKS, summarize, crmRules } from '../features/crm.js';
 import { PRIORITIES } from '../features/priority.js';
 import { SECTIONS, PAGE, HANDOVER_MAX, defaultLayout, sanitizeLayout, compactLayout } from '../lib/print-layout.js';
 import { byId, clear, el, formatDate, formatDateTime, setStatus } from '../lib/util.js';
@@ -30,6 +30,7 @@ async function settle(promise, fallback) {
 async function loadData() {
   const card = await t.card('id', 'name', 'desc', 'due', 'dueComplete', 'start', 'labels', 'members', 'idList', 'url', 'attachments', 'shortLink');
   const authed = !!(await settle(getToken(t), null));
+  const rules = crmRules(await settle(getSettings(t), {}));
   const [board, lists, me, company, crm, parent, children, priority, savedLayout, note, allCards] = await Promise.all([
     settle(t.board('id', 'name'), {}), settle(t.lists('id', 'name'), []), settle(t.member('fullName', 'username'), {}),
     get(t, 'card', KEYS.company), get(t, 'card', KEYS.crm), get(t, 'card', KEYS.parent), get(t, 'card', KEYS.children),
@@ -44,7 +45,7 @@ async function loadData() {
   if (fields && fields.fields && fields.fields.length) fieldCtx = await settle(loadContext(t, fields.fields, { boardId: board.id, cards: allCards }), null);
   return {
     card, board, list: (lists.find((l) => l.id === card.idList) || {}).name || '', me, authed,
-    company, crm, parent, children: children || [], priority, savedLayout, note: note || '', allCards: new Map(allCards.map((c) => [c.id, c])),
+    rules, company, crm, parent, children: children || [], priority, savedLayout, note: note || '', allCards: new Map(allCards.map((c) => [c.id, c])),
     checklists: lists2, comments, fields, fieldCtx
   };
 }
@@ -108,7 +109,7 @@ const RENDER = {
   },
 
   crm: (opts) => {
-    const tracks = summarize(data.crm, data.company, data.card.name);
+    const tracks = summarize(data.crm, data.company, data.card.name, data.rules);
     if (!tracks.length) return null;
     const head = el('tr', {}, ['Track', 'Stage', 'Since', 'Deadline', opts.notes ? 'Note' : null].filter(Boolean).map((h) => el('th', {}, h)));
     const period = tracks.find((s) => s.period);

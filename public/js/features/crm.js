@@ -5,12 +5,31 @@ import { get, getSettings } from '../lib/storage.js';
 import { shownBadges } from '../lib/deadline-badges.js';
 import { addMonths, monthsFromEnd, daysUntil, deadlineColor, formatDate, viewUrl } from '../lib/util.js';
 
+export const DEFAULT_RULES = { bookkeeping: { months: 1, days: 0 } };
+
+const intIn = (v, min, max, fallback) => { const n = Number(v); return Number.isInteger(n) && n >= min && n <= max ? n : fallback; };
+
+/** Deadline rules from board settings (only bookkeeping is adjustable; the rest are statutory). */
+export function crmRules(settings) {
+  const bk = (settings && settings.crmRules && settings.crmRules.bookkeeping) || {};
+  return { bookkeeping: { months: intIn(bk.months, 0, 24, 1), days: intIn(bk.days, 0, 365, 0) } };
+}
+
+/** How a track's automatic deadline is worked out, in words. */
+export function ruleText(key, rules = DEFAULT_RULES) {
+  if (key !== 'bookkeeping') return TRACKS[key].deadlineLabel;
+  const { months, days } = rules.bookkeeping;
+  const parts = [months ? `${months} month${months === 1 ? '' : 's'}` : '', days ? `${days} day${days === 1 ? '' : 's'}` : ''].filter(Boolean);
+  return parts.length ? `Target (period end + ${parts.join(' ')})` : 'Target (the period end)';
+}
+
 export const TRACKS = {
   bookkeeping: {
     label: 'Bookkeeping', short: 'BK',
     stages: ['Not started', 'Records requested', 'Records received', 'In progress', 'Queries sent', 'Complete'],
-    deadline: (periodEnd) => (periodEnd ? addMonths(periodEnd, 1) : null),
-    deadlineLabel: 'Target (period end + 1 month)'
+    // Adjustable per board (Power-Up settings): months and days after the period end.
+    deadline: (periodEnd, company, rules = DEFAULT_RULES) => (periodEnd ? monthsFromEnd(periodEnd, rules.bookkeeping.months, rules.bookkeeping.days) : null),
+    deadlineLabel: 'Target'
   },
   accounts: {
     label: 'Year-end accounts', short: 'Accts',
@@ -85,11 +104,21 @@ export function isFinal(trackKey, stage) {
   return stage === stages[stages.length - 1];
 }
 
-export function stageColor(trackKey, track, company, cardName) {
+/** Deadline worked out from the period end (and Companies House for accounts). */
+export function autoDeadline(key, track, company, cardName, rules = DEFAULT_RULES) {
+  return TRACKS[key].deadline(periodOf(track, cardName), company, rules);
+}
+
+/** The deadline in use: one set by hand on the card, else the automatic one. */
+export function deadlineOf(key, track, company, cardName, rules = DEFAULT_RULES) {
+  return (track && track.deadline) || autoDeadline(key, track, company, cardName, rules);
+}
+
+export function stageColor(trackKey, track, company, cardName, rules = DEFAULT_RULES) {
   if (!track || !track.on) return null;
   const stage = track.stage || TRACKS[trackKey].stages[0];
   if (isFinal(trackKey, stage)) return 'green';
-  const due = TRACKS[trackKey].deadline(periodOf(track, cardName), company);
+  const due = deadlineOf(trackKey, track, company, cardName, rules);
   const days = daysUntil(due);
   if (days !== null && days < 0) return 'red';
   if (days !== null && days <= 14) return 'orange';
@@ -97,28 +126,29 @@ export function stageColor(trackKey, track, company, cardName) {
   return 'blue';
 }
 
-export function summarize(crm, company, cardName) {
+export function summarize(crm, company, cardName, rules = DEFAULT_RULES) {
   return TRACK_ORDER.filter((k) => crm && crm[k] && crm[k].on).map((k) => {
     const track = crm[k];
     const period = periodOf(track, cardName);
-    const due = TRACKS[k].deadline(period, company);
-    return { key: k, label: TRACKS[k].label, short: TRACKS[k].short, stage: track.stage || TRACKS[k].stages[0], period, changed: track.changed || null, due, color: stageColor(k, track, company, cardName), final: isFinal(k, track.stage) };
+    const due = deadlineOf(k, track, company, cardName, rules);
+    return { key: k, label: TRACKS[k].label, short: TRACKS[k].short, stage: track.stage || TRACKS[k].stages[0], period, changed: track.changed || null, due, manual: !!track.deadline, color: stageColor(k, track, company, cardName, rules), final: isFinal(k, track.stage) };
   });
 }
 
 export async function cardBadges(t, enabled) {
   if (enabled && !enabled.crm) return [];
-  const show = shownBadges(await getSettings(t));
+  const settings = await getSettings(t);
+  const show = shownBadges(settings);
   const [crm, company, card] = await Promise.all([get(t, 'card', KEYS.crm), get(t, 'card', KEYS.company), t.card('name')]);
-  return summarize(crm, company, card.name)
+  return summarize(crm, company, card.name, crmRules(settings))
     .filter((s) => !s.final && show[`crm_${s.key}`])
     .map((s) => ({ text: `${s.short}: ${s.stage}${s.due ? ` · ${formatDate(s.due, { year: undefined })}` : ''}`, color: s.color }));
 }
 
 export async function cardDetailBadges(t, enabled) {
   if (enabled && !enabled.crm) return [];
-  const [crm, company, card] = await Promise.all([get(t, 'card', KEYS.crm), get(t, 'card', KEYS.company), t.card('name')]);
-  return summarize(crm, company, card.name).map((s) => ({ title: s.label, text: `${s.stage}${s.changed ? ` since ${formatDate(s.changed, { year: undefined })}` : ''}${s.due ? ` · due ${formatDate(s.due)}` : ''}`, color: s.color || deadlineColor(s.due) }));
+  const [crm, company, card, settings] = await Promise.all([get(t, 'card', KEYS.crm), get(t, 'card', KEYS.company), t.card('name'), getSettings(t)]);
+  return summarize(crm, company, card.name, crmRules(settings)).map((s) => ({ title: s.label, text: `${s.stage}${s.changed ? ` since ${formatDate(s.changed, { year: undefined })}` : ''}${s.due ? ` · due ${formatDate(s.due)}` : ''}`, color: s.color || deadlineColor(s.due) }));
 }
 
 export function boardButtons(icon) {

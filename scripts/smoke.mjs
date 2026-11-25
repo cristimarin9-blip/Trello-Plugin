@@ -236,6 +236,21 @@ await visit('/views/card-back.html', true, async (page, errors) => {
   await page.locator('.track-picker button', { hasText: 'Expand all' }).click();
   await page.waitForTimeout(200);
   if ((await page.locator('.track').count()) !== (await page.locator('.track select').count())) errors.push('Expand all left tracks collapsed');
+  // Deadline: automatic, set by hand (typed key by key), back to automatic.
+  const acc = page.locator('input[aria-label="Year-end accounts deadline"]');
+  if ((await acc.inputValue()) !== '2026-12-31') errors.push(`accounts deadline should start automatic (2026-12-31), got ${await acc.inputValue()}`);
+  await acc.focus();
+  for (const k of '01152027') await page.keyboard.type(k);
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(300);
+  crmNow = await page.evaluate(() => window.__makeT().get('card', 'shared', 'crm'));
+  if (crmNow.accounts.deadline !== '2027-01-15') errors.push(`hand-set deadline not saved: ${JSON.stringify(crmNow.accounts)}`);
+  if (!(await page.locator('.track', { hasText: 'Year-end accounts' }).locator('.pill', { hasText: 'Set by hand' }).count())) errors.push('hand-set deadline should be marked');
+  await page.locator('.track', { hasText: 'Year-end accounts' }).locator('button', { hasText: 'Use automatic' }).click();
+  await page.waitForTimeout(300);
+  crmNow = await page.evaluate(() => window.__makeT().get('card', 'shared', 'crm'));
+  if ('deadline' in crmNow.accounts) errors.push('Use automatic should remove the hand-set deadline');
+  if ((await page.locator('input[aria-label="Year-end accounts deadline"]').inputValue()) !== '2026-12-31') errors.push('deadline box should show the automatic date again');
   if (process.env.SHOTS) {
     await page.locator('.track', { hasText: 'PAYE / payroll' }).locator('.track-toggle').click();
     await page.waitForTimeout(200);
@@ -458,12 +473,15 @@ const F = () => Object.fromEntries(store.boards.b1.fields.map((f) => [f.name, f]
   const { page } = p;
   await page.evaluate(() => window.__makeT().set('board', 'shared', 'settings', { chProxyUrl: '', custom: 'keep-me' }));
   await page.evaluate(() => window.__render());
+  await page.locator('input[aria-label="Bookkeeping target months after the period end"]').fill('2');
+  await page.locator('input[aria-label="Bookkeeping target days after the period end"]').fill('14');
   await page.locator('label', { hasText: 'Accounts due' }).locator('input').uncheck();
   await page.locator('label', { hasText: 'CT600 return' }).locator('input').check();
   await page.locator('button', { hasText: 'Save settings' }).click();
   await page.waitForTimeout(200);
   const s = await page.evaluate(() => window.__makeT().get('board', 'shared', 'settings'));
   if (!s || s.cardBadges.accounts !== false || s.cardBadges.ctReturn !== true || s.custom !== 'keep-me') p.errors.push(`settings not saved right: ${JSON.stringify(s)}`);
+  if (!s || !s.crmRules || s.crmRules.bookkeeping.months !== 2 || s.crmRules.bookkeeping.days !== 14) p.errors.push(`bookkeeping rule not saved: ${JSON.stringify(s && s.crmRules)}`);
   await shot(page, 'settings-deadlines');
   await done(p, 'settings: card-front deadlines');
 }

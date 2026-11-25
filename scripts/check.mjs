@@ -242,6 +242,22 @@ assert.deepEqual(badgesFor([{ id: 'c', name: 'VAT', type: 'choice', badge: true,
   assert.equal(s[0].due, '2026-11-07');
   assert.equal(s[0].changed, '2026-11-20');
   assert.match(C.today(), /^\d{4}-\d{2}-\d{2}$/);
+  // Adjustable deadlines: board rule for bookkeeping, hand-set deadline per card.
+  assert.deepEqual(C.crmRules({}), { bookkeeping: { months: 1, days: 0 } });
+  assert.deepEqual(C.crmRules({ crmRules: { bookkeeping: { months: 2, days: 14 } } }), { bookkeeping: { months: 2, days: 14 } });
+  assert.deepEqual(C.crmRules({ crmRules: { bookkeeping: { months: -1, days: 'x' } } }), { bookkeeping: { months: 1, days: 0 } }, 'bad rules fall back');
+  const bk = { on: true, stage: 'In progress' };
+  assert.equal(C.autoDeadline('bookkeeping', bk, null, 'Client YE30.06.26'), '2026-07-31', 'default: period end + 1 month (month end)');
+  assert.equal(C.autoDeadline('bookkeeping', bk, null, 'Client YE30.06.26', C.crmRules({ crmRules: { bookkeeping: { months: 0, days: 21 } } })), '2026-07-21');
+  assert.equal(C.autoDeadline('bookkeeping', bk, null, 'Client YE30.06.26', C.crmRules({ crmRules: { bookkeeping: { months: 2, days: 14 } } })), '2026-09-14');
+  assert.equal(C.ruleText('bookkeeping', C.crmRules({ crmRules: { bookkeeping: { months: 2, days: 14 } } })), 'Target (period end + 2 months 14 days)');
+  assert.equal(C.ruleText('bookkeeping', C.crmRules({ crmRules: { bookkeeping: { months: 0, days: 0 } } })), 'Target (the period end)');
+  assert.equal(C.deadlineOf('bookkeeping', { ...bk, deadline: '2026-08-15' }, null, 'Client YE30.06.26'), '2026-08-15', 'set by hand wins');
+  const sm = C.summarize({ bookkeeping: { ...bk, deadline: '2026-08-15' }, vat: { on: true, stage: 'Review' } }, null, 'Client QE30.06.26');
+  assert.equal(sm[0].due, '2026-08-15');
+  assert.equal(sm[0].manual, true);
+  assert.equal(sm[1].due, '2026-08-07');
+  assert.equal(sm[1].manual, false);
 }
 { // Print layouts: defaults, cleaning, compact storage.
   const P = await import('../public/js/lib/print-layout.js');

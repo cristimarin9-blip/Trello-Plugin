@@ -3,6 +3,7 @@ import { initIframe, fit } from '../lib/iframe.js';
 import { set, getSettings, getAllShared } from '../lib/storage.js';
 import { FEATURES, boardDefaults } from '../lib/features.js';
 import { DEADLINE_BADGES, shownBadges } from '../lib/deadline-badges.js';
+import { crmRules } from '../features/crm.js';
 import { isAuthorized, isConfigured } from '../lib/trello-api.js';
 import { openAuthorize } from '../features/settings.js';
 import { byId, clear, el, jsonSize, setStatus } from '../lib/util.js';
@@ -37,6 +38,13 @@ async function render() {
     app.append(el('label', { class: 'row', style: 'text-transform:none;font-weight:400;margin:3px 0' }, featureBoxes[f.id], el('span', {}, f.label, ' ', el('small', { class: 'muted' }, f.desc))));
   }
 
+  app.append(el('h3', { style: 'margin-top:10px' }, 'Client stage deadlines'));
+  const rules = crmRules(settings);
+  const bkMonths = el('input', { type: 'number', min: '0', max: '24', step: '1', value: String(rules.bookkeeping.months), style: 'width:70px', 'aria-label': 'Bookkeeping target months after the period end' });
+  const bkDays = el('input', { type: 'number', min: '0', max: '365', step: '1', value: String(rules.bookkeeping.days), style: 'width:70px', 'aria-label': 'Bookkeeping target days after the period end' });
+  app.append(el('div', { class: 'row', style: 'font-size:13px' }, el('span', {}, 'Bookkeeping target:'), bkMonths, el('span', {}, 'months and'), bkDays, el('span', {}, 'days after the period end')));
+  app.append(el('p', { class: 'muted' }, el('small', {}, 'VAT, accounts and PAYE follow the HMRC / Companies House deadlines. Any track\'s deadline can also be changed on a card (Client stages → Deadline).')));
+
   app.append(el('h3', { style: 'margin-top:10px' }, 'Card-front deadlines'));
   app.append(el('p', { class: 'muted' }, el('small', {}, 'Choose which deadlines appear as badges on the front of cards on this board. Badges for your own fields are chosen per field in Fields → Add / edit fields.')));
   const shown = shownBadges(settings);
@@ -57,7 +65,8 @@ async function render() {
     const cardBadges = Object.fromEntries(DEADLINE_BADGES.map((b) => [b.id, badgeBoxes[b.id].checked]));
     // Keep any other settings keys; replace the ones edited here.
     const { stageBadges, ...rest } = settings;
-    await set(t, 'board', KEYS.settings, { ...rest, chProxyUrl: proxy.value.trim().replace(/\/+$/, ''), cardBadges, defaults: nextDefaults });
+    const crmRulesNext = crmRules({ crmRules: { bookkeeping: { months: Number(bkMonths.value), days: Number(bkDays.value) } } });
+    await set(t, 'board', KEYS.settings, { ...rest, chProxyUrl: proxy.value.trim().replace(/\/+$/, ''), cardBadges, crmRules: crmRulesNext, defaults: nextDefaults });
     setStatus('Saved', 'success');
   } }, 'Save settings')));
   fit(t);

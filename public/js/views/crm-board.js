@@ -1,8 +1,8 @@
 // Modal: every client card's stages at a glance.
 import { KEYS } from '../config.js';
 import { initIframe } from '../lib/iframe.js';
-import { get } from '../lib/storage.js';
-import { TRACKS, TRACK_ORDER, summarize } from '../features/crm.js';
+import { get, getSettings } from '../lib/storage.js';
+import { TRACKS, TRACK_ORDER, summarize, crmRules } from '../features/crm.js';
 import { PRIORITIES } from '../features/priority.js';
 import { boardDefaults, cardFeatures } from '../lib/features.js';
 import { byId, clear, el, formatDate, daysUntil, deadlineColor, truncate } from '../lib/util.js';
@@ -27,6 +27,7 @@ async function load() {
   const [cards, lists] = await Promise.all([t.cards('id', 'name', 'idList', 'due'), t.lists('id', 'name')]);
   const listName = new Map(lists.map((l) => [l.id, l.name]));
   const defaults = await boardDefaults(t);
+  const rules = crmRules(await getSettings(t));
   const data = await Promise.all(cards.map((c) => Promise.all([get(t, c.id, KEYS.crm), get(t, c.id, KEYS.company), get(t, c.id, KEYS.priority), cardFeatures(t, c.id, defaults)])));
   rows = cards.map((c, i) => {
     const [crm, company, priority, { enabled }] = data[i];
@@ -37,7 +38,7 @@ async function load() {
       crm: crm || {},
       company: enabled.company ? company : null,
       priority: enabled.priority ? priority : null,
-      tracks: enabled.crm ? summarize(crm, company, c.name) : []
+      tracks: enabled.crm ? summarize(crm, company, c.name, rules) : []
     };
   }).filter((r) => r.tracks.length || r.company);
   update();
@@ -48,7 +49,7 @@ function cell(r, key) {
   if (!s) return el('td', { class: 'muted' }, '—');
   return el('td', {}, el('span', { class: `pill ${s.color || 'light-gray'}` }, s.stage),
     s.changed ? el('div', {}, el('small', { class: 'muted' }, `since ${formatDate(s.changed, { year: undefined })}`)) : null,
-    s.due ? el('div', {}, el('small', { class: 'muted' }, `due ${formatDate(s.due, { year: undefined })}`)) : null);
+    s.due ? el('div', {}, el('small', { class: 'muted', title: s.manual ? 'Deadline set by hand on the card' : null }, `due ${formatDate(s.due, { year: undefined })}${s.manual ? ' ✎' : ''}`)) : null);
 }
 
 function visible() {

@@ -1,14 +1,15 @@
 // Card-back tab: client stage tracker (bookkeeping / accounts / VAT / PAYE).
 import { KEYS } from '../config.js';
-import { get, set } from '../lib/storage.js';
-import { TRACKS, TRACK_ORDER, stageColor, periodFromTitle, periodOf, today } from '../features/crm.js';
+import { get, set, getSettings } from '../lib/storage.js';
+import { TRACKS, TRACK_ORDER, stageColor, periodFromTitle, periodOf, today, crmRules, autoDeadline, deadlineOf, ruleText } from '../features/crm.js';
 import { el, formatDate, daysUntil, toDateInput, setStatus, bindDateCommit } from '../lib/util.js';
 
 export default {
   id: 'crm',
   label: 'Client stages',
   async render(t, root, ctx) {
-    const [crm, company, card] = await Promise.all([get(t, 'card', KEYS.crm, {}), get(t, 'card', KEYS.company), t.card('id', 'name')]);
+    const [crm, company, card, settings] = await Promise.all([get(t, 'card', KEYS.crm, {}), get(t, 'card', KEYS.company), t.card('id', 'name'), getSettings(t)]);
+    const rules = crmRules(settings);
     const titlePeriod = periodFromTitle(card.name);
     const state = { ...(crm || {}) };
     let timer;
@@ -68,9 +69,10 @@ export default {
       // Moving to another stage records the date; it can be corrected by hand.
       const setStage = (stage) => { if (stage !== track.stage) { track.stage = stage; track.changed = today(); } saveAndRefresh(); };
       const isCollapsed = collapsed.has(key);
-      const color = stageColor(key, track, company, card.name);
+      const color = stageColor(key, track, company, card.name, rules);
       const period = periodOf(track, card.name);
-      const due = def.deadline(period, company);
+      const auto = autoDeadline(key, track, company, card.name, rules);
+      const due = deadlineOf(key, track, company, card.name, rules);
       const days = daysUntil(due);
       const box = el('div', { class: `track${isCollapsed ? ' collapsed' : ''}` });
       const header = el('header', {},
@@ -87,6 +89,12 @@ export default {
         const changed = el('input', { type: 'date', value: toDateInput(track.changed), 'aria-label': `${def.label} stage changed` });
         // 2020 or later; saving waits until the four-digit year is typed.
         bindDateCommit(changed, (v) => { track.changed = v || null; saveAndRefresh(); }, { minYear: 2020 });
+        // Deadline: automatic unless set by hand; clearing the box goes back to automatic.
+        const deadline = el('input', { type: 'date', value: toDateInput(due), 'aria-label': `${def.label} deadline` });
+        bindDateCommit(deadline, (v) => {
+          if (!v || v === auto) delete track.deadline; else track.deadline = v;
+          saveAndRefresh();
+        }, { minYear: 2020 });
         const note = el('input', { type: 'text', maxlength: '80', placeholder: 'Short note (optional)', value: track.note || '', onchange: () => { track.note = note.value; save(); } });
         const idx = def.stages.indexOf(track.stage);
         const next = el('button', { class: 'small', disabled: idx >= def.stages.length - 1, onclick: () => setStage(def.stages[idx + 1]) }, 'Next stage →');
@@ -94,13 +102,19 @@ export default {
           el('div', { class: 'grid-2' },
             el('div', {}, el('label', {}, 'Stage'), stageSelect),
             el('div', {}, el('label', {}, 'Stage changed'), changed)),
+          el('div', { class: 'grid-2', style: 'margin-top:6px' },
+            el('div', {}, el('label', {}, 'Deadline'), deadline),
+            el('div', { class: 'deadline-info' },
+              track.deadline
+                ? el('small', {}, el('span', { class: 'pill orange' }, 'Set by hand'), ' ', auto ? `Automatic: ${formatDate(auto)}. ` : '',
+                  el('button', { class: 'small linklike', onclick: () => { delete track.deadline; saveAndRefresh(); } }, 'Use automatic'))
+                : el('small', { class: 'muted' }, auto ? `Automatic: ${ruleText(key, rules)}` : `${ruleText(key, rules)}: needs a period end in the card title`),
+              due ? el('div', {}, el('small', { class: days < 0 ? 'status error' : 'muted' }, days < 0 ? `${-days} days overdue` : days === 0 ? 'Due today' : `${days} days left`)) : null)),
           el('div', { class: 'muted', style: 'font-size:12px;margin-top:6px' },
             titlePeriod ? `Period end (from the card title): ${formatDate(titlePeriod)}`
               : period ? `Period end: ${formatDate(period)} (saved earlier; put it in the card title, e.g. "YE31.08.26", to keep it with the card)`
                 : 'No period end in the card title. Add it like "YE31.08.26" or "QE 30/06/2026" to get deadlines.'),
-          el('div', { class: 'row between', style: 'margin-top:6px' },
-            el('small', { class: 'muted' }, due ? `${def.deadlineLabel}: ${formatDate(due)} (${days < 0 ? `${-days}d overdue` : `${days}d left`})` : def.deadlineLabel),
-            next),
+          el('div', { class: 'row between', style: 'margin-top:6px' }, el('span'), next),
           el('div', {}, note)
         );
       }
